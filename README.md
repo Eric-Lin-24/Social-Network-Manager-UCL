@@ -1,233 +1,179 @@
-Community Curator is a desktop dashboard for planning, scheduling, and managing community messages. It lets you attach cloud files, schedule messages across multiple days, and see everything laid out in a calendar so nothing gets missed.
+# COMMUNITY CURATOR
 
-This README explains how to use the app from start to finish.
+Community Curator is a desktop dashboard for planning, scheduling, and managing community messages. It lets you attach cloud files, schedule messages across multiple days, and view everything in a calendar so nothing gets missed.
 
-Table of Contents
+This document explains how to use the app step by step.
 
-Getting Started
+---
 
-Connecting Accounts
+## GETTING STARTED
 
-Dashboard Overview
+1. Launch the app.
+2. You will land on the Dashboard.
+3. Use the left navigation to move between:
 
-Calendar (Day Picker & Day Details)
+   * Dashboard
+   * Calendar
+   * Documents
+   * Messages (Scheduling)
 
-Scheduling Messages
+All views share the same app state, so selections carry across pages.
 
-Drafts & Message Queue
+---
 
-File Attachments
+## CONNECTING ACCOUNTS
 
-Deleting Scheduled Messages
+Before scheduling messages, you may connect cloud services:
 
-Tips & Gotchas
+1. Open Settings
+2. Connect Google Drive (optional)
+3. Connect OneDrive (optional)
 
-Getting Started
+Once connected, cloud files can be attached when scheduling messages.
 
-Launch the app.
+You can still schedule messages without connecting any cloud services.
 
-You’ll land on the Dashboard.
+---
 
-From the left navigation, you can switch between:
+## DASHBOARD OVERVIEW
 
-Dashboard
-
-Calendar
-
-Documents
-
-Messages (Scheduling)
-
-All views share a single app state, so selections carry across pages.
-
-Connecting Accounts
-
-Before scheduling messages, connect any cloud services you want to use:
-
-Go to Settings
-
-Connect:
-
-Google Drive (optional)
-
-OneDrive (optional)
-
-Once connected, cloud files become available in the message composer.
-
-You can still schedule messages without cloud files.
-
-Dashboard Overview
-
-The Dashboard gives you a quick overview and shortcuts, but it does not control scheduling directly.
+The Dashboard provides quick access and navigation shortcuts.
 
 Use it to:
 
-Jump to Calendar
+* Jump to the Calendar
+* Jump to Scheduling
+* Sync connected services
 
-Jump to Scheduling
+The Dashboard does not schedule messages directly.
 
-Sync connected services
+---
 
-Calendar
+## CALENDAR
 
-The Calendar is the central planning tool.
+The Calendar is the main planning tool.
 
-Navigating the Calendar
+NAVIGATING THE CALENDAR
 
-Use Prev / Next to move between months.
+* Use Prev / Next to move between months
+* Use Today to jump back to the current month
 
-Click Today to jump back to the current month.
+---
 
-Viewing Messages for a Day
+## VIEWING MESSAGES FOR A DAY
 
-Click on any day.
+1. Click on any day in the calendar.
+2. A popup opens showing:
 
-A Day Details popup opens showing:
-
-All messages scheduled for that day
-
-Status (pending or sent)
-
-Message content
-
-Number of attached files
+   * All messages scheduled for that day
+   * Message status (pending or sent)
+   * Message content
+   * Number of attached files
 
 From this popup you can:
 
-Delete a scheduled message
+* Delete a scheduled message
+* Schedule a new message for that specific day
 
-Schedule a new message for this day
+If no messages exist for the day, the popup will say:
+“No messages found”
+and still allow you to schedule a message.
 
-If there are no messages, the popup will say “No messages found” and still allow scheduling.
+---
 
-Selecting Multiple Days (Bulk Scheduling)
+## SELECTING MULTIPLE DAYS (BULK SCHEDULING)
 
-Click Select days (top right of the calendar).
+1. Click “Select days” in the calendar.
+2. Click any number of days (across multiple months if needed).
+3. Selected days are highlighted.
+4. Click “Done”.
 
-Click any number of days — even across different months.
+You will be taken to the Scheduling page with all selected days preloaded.
 
-Selected days are highlighted.
+---
 
-Click Done.
+## SCHEDULING MESSAGES
 
-You’ll be taken to the Scheduling page with all selected days pre-filled.
+The Scheduling page is where messages are created and sent.
 
-Scheduling Messages
+STEP 1: CHOOSE RECIPIENTS
 
-The Scheduling page is where messages are created.
+* Select one or more subscribed chats.
+* At least one recipient is required.
 
-Step 1: Choose Recipients
+STEP 2: WRITE YOUR MESSAGE
 
-Select one or more subscribed chats.
+* Enter your message text.
+* Message content is preserved when switching tabs.
 
-You must select at least one recipient.
+STEP 3: CHOOSE DAYS AND TIME
 
-Step 2: Write Your Message
+* Selected days come from:
 
-Enter the message text in the message box.
+  * the Calendar “Select days” flow, or
+  * the “Schedule message for this day” button in the calendar popup
+* All selected days use the same scheduled time.
+* Choose a time using the time picker or quick schedule buttons.
 
-Your text is saved automatically if you navigate away and come back.
+STEP 4: ATTACH FILES (OPTIONAL)
 
-Step 3: Choose Days & Time
+* Attach local files, or
+* Attach files from Google Drive or OneDrive
+* Cloud files are downloaded before scheduling to ensure consistency
 
-Selected days come from:
+STEP 5: SCHEDULE
 
-the Calendar day picker, or
+* Click “Schedule Message”
+* The message is scheduled for:
 
-the “Schedule message for this day” button in the calendar popup
+  * every selected day
+  * every selected recipient
 
-All selected days will use the same time.
+Messages appear grouped (“bundled”) in the queue by day.
 
-Choose a time using the time picker or quick schedule buttons.
+---
 
-Step 4: Attach Files (Optional)
+## DRAFTS AND MESSAGE QUEUE
 
-Add local files, or
+DRAFTS
 
-Attach files from Google Drive or OneDrive
+* Save reusable messages for later.
+* Drafts do not schedule messages until explicitly sent.
 
-Cloud files are downloaded before scheduling to ensure consistency
+MESSAGE QUEUE
 
-Step 5: Schedule
+* Shows all scheduled messages
+* Messages are grouped by day and content
+* Displays:
 
-Click Schedule Message
+  * recipients
+  * scheduled time
+  * message preview
+  * status
 
-The message is scheduled for:
+---
 
-every selected day
+## DELETING SCHEDULED MESSAGES
 
-every selected recipient
+Messages can be deleted from two places.
 
-Messages are grouped (“bundled”) in the queue by day for clarity.
+FROM THE CALENDAR
 
-Drafts & Message Queue
-Drafts
+1. Click a day
+2. Click the trash icon next to a message
+3. The message is removed immediately
 
-Save messages you reuse often.
+FROM THE MESSAGE QUEUE
 
-Drafts do not schedule anything until explicitly sent.
+* Deleting a bundled message removes all associated scheduled instances
 
-Message Queue
+Messages that are already sent may still appear for reference but cannot be undone.
 
-Shows all scheduled messages
+---
 
-Bundled by day and content
+## PERSISTENCE AND NAVIGATION
 
-Displays:
+* Message text, selected recipients, and selected time are preserved when switching tabs
+* Selected days remain until changed
+* You can freely navigate between Calendar, Scheduling, and Documents without losing progress
 
-recipients
-
-scheduled time
-
-message preview
-
-status
-
-Deleting Scheduled Messages
-
-You can delete messages from two places:
-
-From the Calendar
-
-Click a day
-
-Click the trash icon next to a message
-
-The message is removed immediately
-
-From the Message Queue
-
-Deleting a bundled message removes all associated scheduled instances
-
-If a message is already sent, it may still appear for reference but cannot be retracted.
-
-Persistence & Navigation
-
-Message text, selected recipients, and time are preserved when switching tabs.
-
-Selected days persist until changed.
-
-You can safely move between Calendar, Scheduling, and Documents without losing work.
-
-Tips & Gotchas
-
-Calendar click ≠ schedule immediately
-Clicking a day opens details. Scheduling always happens from the Scheduling page.
-
-Multi-day scheduling uses one time
-If you need different times per day, schedule them separately.
-
-Bundled messages are visual only
-Internally, messages are still sent per recipient and per day.
-
-Summary
-
-Community Curator is designed to:
-
-reduce scheduling mistakes,
-
-make multi-day planning easy,
-
-and keep message management visible and predictable.
-
-If you can read a calendar, you can run your community.
