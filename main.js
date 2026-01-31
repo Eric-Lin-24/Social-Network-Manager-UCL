@@ -68,7 +68,7 @@ const SCOPES = [
 
 // Google OAuth Configuration
 // Credentials loaded from .env file - see .env.example
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '811017499008-52eoerm7gjaio44pm94k7n71p37l2tv4.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = 'http://localhost:3001';
 const GOOGLE_SCOPES = [

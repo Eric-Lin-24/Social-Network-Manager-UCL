@@ -53,13 +53,21 @@ const MicrosoftGraphAPI = {
       console.log('╚════════════════════════════════════════════════════════════╝');
       console.log('⏰ Timestamp:', new Date().toISOString());
 
-      if (token) {
-        AppState.accessToken = token;
+      // Define user-specific storage keys
+      const userMsTokenKey = `ms_token_${AppState.userId}`;
+      const userMsProfileKey = `ms_profile_${AppState.userId}`;
+
+      // Check localStorage for saved token first
+      const savedToken = localStorage.getItem(userMsTokenKey);
+      if (savedToken) {
+        console.log('✅ Found saved token in localStorage');
+        AppState.accessToken = savedToken;
         AppState.isAuthenticated = true;
         await this.getUserProfile();
         console.log('User authenticated:', AppState.userProfile);
         showNotification('Successfully logged in!', 'success');
         renderApp();
+        return true;
       } else {
         console.log('ℹ️  No saved credentials found for this user');
       }
