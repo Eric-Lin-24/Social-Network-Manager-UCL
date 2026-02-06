@@ -13,10 +13,14 @@ import shutil
 from pathlib import Path
 
 from database import get_db, init_db, get_user_by_username
+from models import Project, TeamMember, TimelineTask
 from schemas import (
     User,
     UserCreate,
-    UserSignIn
+    UserSignIn,
+    ProjectCreate, ProjectUpdate, ProjectResponse,
+    TeamMemberCreate, TeamMemberUpdate, TeamMemberResponse,
+    TimelineTaskCreate, TimelineTaskUpdate, TimelineTaskResponse,
 )
 
 from auth import create_user, verify_password
@@ -31,6 +35,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Base URL for file access
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
@@ -73,6 +86,187 @@ async def root():
         "docs": "/docs",
         "redoc": "/redoc"
     }
+
+
+# ============================================
+# PROJECT ENDPOINTS
+# ============================================
+
+@app.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+def create_project(project: ProjectCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_project = Project(
+        id=str(uuid.uuid4()),
+        name=project.name,
+        color=project.color or "#14b8a6",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+
+@app.get("/projects", response_model=List[ProjectResponse])
+def list_projects(user_uuid: str, db: Session = Depends(get_db)):
+    return db.query(Project).filter(Project.owner_uuid == user_uuid).all()
+
+
+@app.get("/projects/{project_id}", response_model=ProjectResponse)
+def get_project(project_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    proj = db.query(Project).filter(Project.id == project_id, Project.owner_uuid == user_uuid).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return proj
+
+
+@app.put("/projects/{project_id}", response_model=ProjectResponse)
+def update_project(project_id: str, project: ProjectUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_proj = db.query(Project).filter(Project.id == project_id, Project.owner_uuid == user_uuid).first()
+    if not db_proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    for field, value in project.dict(exclude_unset=True).items():
+        setattr(db_proj, field, value)
+    db.commit()
+    db.refresh(db_proj)
+    return db_proj
+
+
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_proj = db.query(Project).filter(Project.id == project_id, Project.owner_uuid == user_uuid).first()
+    if not db_proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete(db_proj)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# TEAM MEMBER ENDPOINTS
+# ============================================
+
+@app.post("/team-members", response_model=TeamMemberResponse, status_code=status.HTTP_201_CREATED)
+def create_team_member(member: TeamMemberCreate, user_uuid: str, db: Session = Depends(get_db)):
+    initials = member.avatar_initials
+    if not initials:
+        parts = member.name.strip().split()
+        initials = (parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")).upper()
+    db_member = TeamMember(
+        id=str(uuid.uuid4()),
+        name=member.name,
+        role=member.role or "",
+        avatar_initials=initials,
+        weekly_capacity_hours=member.weekly_capacity_hours or 40,
+        owner_uuid=user_uuid,
+    )
+    db.add(db_member)
+    db.commit()
+    db.refresh(db_member)
+    return db_member
+
+
+@app.get("/team-members", response_model=List[TeamMemberResponse])
+def list_team_members(user_uuid: str, db: Session = Depends(get_db)):
+    return db.query(TeamMember).filter(TeamMember.owner_uuid == user_uuid).all()
+
+
+@app.get("/team-members/{member_id}", response_model=TeamMemberResponse)
+def get_team_member(member_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    return m
+
+
+@app.put("/team-members/{member_id}", response_model=TeamMemberResponse)
+def update_team_member(member_id: str, member: TeamMemberUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
+    if not db_m:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    for field, value in member.dict(exclude_unset=True).items():
+        setattr(db_m, field, value)
+    db.commit()
+    db.refresh(db_m)
+    return db_m
+
+
+@app.delete("/team-members/{member_id}")
+def delete_team_member(member_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
+    if not db_m:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    db.delete(db_m)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# TIMELINE TASK ENDPOINTS
+# ============================================
+
+@app.post("/timeline-tasks", response_model=TimelineTaskResponse, status_code=status.HTTP_201_CREATED)
+def create_timeline_task(task: TimelineTaskCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_task = TimelineTask(
+        id=str(uuid.uuid4()),
+        title=task.title,
+        description=task.description or "",
+        project_id=task.project_id,
+        assignee_id=task.assignee_id,
+        start_date=task.start_date,
+        end_date=task.end_date,
+        hours_per_week=task.hours_per_week or 8,
+        status=task.status or "planned",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.get("/timeline-tasks", response_model=List[TimelineTaskResponse])
+def list_timeline_tasks(
+    user_uuid: str,
+    project_id: Optional[str] = None,
+    assignee_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(TimelineTask).filter(TimelineTask.owner_uuid == user_uuid)
+    if project_id:
+        query = query.filter(TimelineTask.project_id == project_id)
+    if assignee_id:
+        query = query.filter(TimelineTask.assignee_id == assignee_id)
+    return query.all()
+
+
+@app.get("/timeline-tasks/{task_id}", response_model=TimelineTaskResponse)
+def get_timeline_task(task_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    t = db.query(TimelineTask).filter(TimelineTask.id == task_id, TimelineTask.owner_uuid == user_uuid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return t
+
+
+@app.put("/timeline-tasks/{task_id}", response_model=TimelineTaskResponse)
+def update_timeline_task(task_id: str, task: TimelineTaskUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_task = db.query(TimelineTask).filter(TimelineTask.id == task_id, TimelineTask.owner_uuid == user_uuid).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    for field, value in task.dict(exclude_unset=True).items():
+        setattr(db_task, field, value)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.delete("/timeline-tasks/{task_id}")
+def delete_timeline_task_api(task_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_task = db.query(TimelineTask).filter(TimelineTask.id == task_id, TimelineTask.owner_uuid == user_uuid).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(db_task)
+    db.commit()
+    return {"deleted": True}
 
 
 def create_app():

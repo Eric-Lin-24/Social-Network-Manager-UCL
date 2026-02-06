@@ -27,6 +27,10 @@ const viewMeta = {
   settings: {
     title: 'Settings',
     subtitle: 'Configure platform connections and preferences.'
+  },
+  timeline: {
+    title: 'Resource Timeline',
+    subtitle: 'Plan and visualize team capacity and task assignments.'
   }
 };
 
@@ -193,6 +197,10 @@ function renderApp() {
       if (typeof renderSettings === 'function') renderSettings();
       break;
 
+    case 'timeline':
+      if (typeof renderTimeline === 'function') renderTimeline();
+      break;
+
     default:
       AppState.currentView = 'dashboard';
       if (typeof renderDashboard === 'function') renderDashboard();
@@ -299,6 +307,15 @@ async function refreshCurrentView() {
         if (typeof renderDashboard === 'function') renderDashboard();
         else renderApp();
 
+        break;
+      }
+
+      case 'timeline': {
+        showLoadingOverlay('Syncing timeline…');
+        if (typeof timelineRefreshData === 'function') {
+          await maybeAwait(timelineRefreshData);
+        }
+        if (typeof renderTimeline === 'function') renderTimeline();
         break;
       }
 

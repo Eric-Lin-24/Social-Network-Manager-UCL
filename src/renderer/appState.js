@@ -67,7 +67,17 @@ const AppState = {
   templates: [],
 
   // Connections
-  connections: []
+  connections: [],
+
+  // Timeline / Resource Planning
+  timelineProjects: [],
+  timelineTeamMembers: [],
+  timelineTasks: [],
+  timelineViewMode: 'timeline',
+  timelineZoom: 'week',
+  timelineStartDate: null,
+  timelineFilterProject: '',
+  timelineFilterPerson: ''
 };
 
 // Export to global scope
