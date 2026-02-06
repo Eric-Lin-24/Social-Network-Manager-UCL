@@ -29,8 +29,8 @@ const viewMeta = {
     subtitle: 'Configure platform connections and preferences.'
   },
   timeline: {
-    title: 'Resource Timeline',
-    subtitle: 'Plan and visualize team capacity and task assignments.'
+    title: 'Projects',
+    subtitle: 'Browse and manage your project timelines.'
   },
   people: {
     title: 'People',
@@ -202,6 +202,9 @@ function renderApp() {
       break;
 
     case 'timeline':
+      // Reset to project index when navigating from sidebar
+      AppState.timelineSelectedProject = null;
+      AppState.timelineFilterProject = '';
       if (typeof renderTimeline === 'function') renderTimeline();
       break;
 

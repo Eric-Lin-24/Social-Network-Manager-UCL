@@ -171,6 +171,13 @@ function _ganttMonthSpans(columns) {
 
 // ===== Data Fetching =====
 
+async function timelineFetchWorkspaces() {
+  if (!AppState.userId) return;
+  const resp = await fetch(`${AppState.authenticationUrl}/workspaces?user_uuid=${AppState.userId}`);
+  if (!resp.ok) throw new Error('Failed to fetch workspaces');
+  AppState.timelineWorkspaces = await resp.json();
+}
+
 async function timelineFetchProjects() {
   if (!AppState.userId) return;
   const resp = await fetch(`${AppState.authenticationUrl}/projects?user_uuid=${AppState.userId}`);
@@ -197,6 +204,7 @@ async function timelineFetchTasks() {
 async function timelineRefreshData() {
   try {
     await Promise.all([
+      timelineFetchWorkspaces(),
       timelineFetchProjects(),
       timelineFetchMembers(),
       timelineFetchTasks()
@@ -397,7 +405,7 @@ function _ganttBuildChart() {
   const rows = []; // { type: 'project'|'task', data, project }
   for (const project of visibleProjects) {
     const projectTasks = tasks.filter(t => t.project_id === project.id);
-    if (!filterProject && projectTasks.length === 0) continue;
+    // Always show tasks (projects), even if they have no sub-tasks yet
     rows.push({ type: 'project', project, taskCount: projectTasks.length });
     if (!collapsed[project.id]) {
       for (const task of projectTasks) {
@@ -516,7 +524,11 @@ function _ganttBuildChart() {
     } else {
       // Task row
       const task = row.task;
-      const member = members.find(m => m.id === task.assignee_id);
+      const assigneeIds = task.assignee_id ? task.assignee_id.split(',') : [];
+      const assigneeNames = assigneeIds.map(id => {
+        const m = members.find(mm => mm.id === id);
+        return m ? _tlEscape(m.name) : null;
+      }).filter(Boolean);
 
       // Sidebar label
       rowsHTML += `<div class="gantt-task-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="openEditTaskModal('${task.id}')">
@@ -538,7 +550,7 @@ function _ganttBuildChart() {
         const gc2 = span.endCol + 3;
         const color = row.project.color || '#14b8a6';
         const doneClass = task.status === 'done' ? ' gantt-bar-done' : '';
-        const assigneeName = member ? _tlEscape(member.name) : '';
+        const assigneeLabel = assigneeNames.join(', ');
 
         rowsHTML += `<div class="gantt-task-bar${doneClass}" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; background: ${color};"
           onclick="openEditTaskModal('${task.id}')"
@@ -548,8 +560,8 @@ function _ganttBuildChart() {
         </div>`;
 
         // Assignee label to the right of bar
-        if (assigneeName && span.endCol + 1 < numCols) {
-          rowsHTML += `<div class="gantt-assignee-label" style="grid-row: ${gridRow}; grid-column: ${gc2};">${assigneeName}</div>`;
+        if (assigneeLabel && span.endCol + 1 < numCols) {
+          rowsHTML += `<div class="gantt-assignee-label" style="grid-row: ${gridRow}; grid-column: ${gc2};">${assigneeLabel}</div>`;
         }
       }
     }
@@ -618,7 +630,11 @@ function _tlBuildListView() {
 
   const rows = filteredTasks.map(task => {
     const project = projects.find(p => p.id === task.project_id);
-    const member = members.find(m => m.id === task.assignee_id);
+    const assigneeIds = task.assignee_id ? task.assignee_id.split(',') : [];
+    const assigneeNames = assigneeIds.map(id => {
+      const m = members.find(mm => mm.id === id);
+      return m ? _tlEscape(m.name) : null;
+    }).filter(Boolean);
     const statusCls = task.status === 'done' ? 'tl-status-done'
       : task.status === 'in_progress' ? 'tl-status-progress'
       : 'tl-status-planned';
@@ -632,7 +648,7 @@ function _tlBuildListView() {
           </div>
         </td>
         <td>${project ? _tlEscape(project.name) : '-'}</td>
-        <td>${member ? _tlEscape(member.name) : '-'}</td>
+        <td>${assigneeNames.length > 0 ? assigneeNames.join(', ') : '-'}</td>
         <td>${task.start_date}</td>
         <td>${task.end_date}</td>
         <td>${task.hours_per_week}h/wk</td>
@@ -681,14 +697,643 @@ function renderTimeline() {
     return;
   }
 
+  // Route: project index vs. detail Gantt view
+  if (AppState.timelineSelectedProject) {
+    _tlRenderDetailView(content);
+  } else {
+    _tlRenderProjectIndex(content);
+  }
+}
+
+// ===== Project Index Page (shows Workspaces) =====
+
+function _tlRenderProjectIndex(content) {
+  const workspaces = AppState.timelineWorkspaces || [];
+  const projects = AppState.timelineProjects || [];
+  const tasks = AppState.timelineTasks || [];
+  const members = AppState.timelineTeamMembers || [];
+  const search = (AppState.timelineProjectSearch || '').toLowerCase();
+  const viewMode = AppState.timelineProjectViewMode || 'grid';
+
+  // Update header
+  const titleEl = document.getElementById('view-title');
+  const subEl = document.getElementById('view-subtitle');
+  if (titleEl) titleEl.textContent = 'Projects';
+  if (subEl) subEl.textContent = 'Browse and manage your project timelines.';
+
+  // Filter workspaces by search
+  const filtered = search
+    ? workspaces.filter(ws => ws.name.toLowerCase().includes(search) || (ws.description || '').toLowerCase().includes(search))
+    : workspaces;
+
+  // Build workspace cards
+  const cardsHTML = filtered.map(ws => {
+    // Tasks (projects) belonging to this workspace
+    const wsTasks = projects.filter(p => p.workspace_id === ws.id);
+    const taskCount = wsTasks.length;
+
+    // All sub-tasks across all tasks in this workspace
+    const taskIds = wsTasks.map(p => p.id);
+    const allSubtasks = tasks.filter(t => taskIds.includes(t.project_id));
+    const subtaskCount = allSubtasks.length;
+
+    // Date range from sub-tasks
+    let dateRange = 'No tasks yet';
+    let durationWeeks = 0;
+    if (allSubtasks.length > 0) {
+      let minStart = allSubtasks[0].start_date;
+      let maxEnd = allSubtasks[0].end_date;
+      for (const t of allSubtasks) {
+        if (t.start_date < minStart) minStart = t.start_date;
+        if (t.end_date > maxEnd) maxEnd = t.end_date;
+      }
+      const s = _tlParseDate(minStart);
+      const e = _tlParseDate(maxEnd);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      dateRange = `${months[s.getMonth()]} ${s.getDate()} \u2013 ${months[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
+      durationWeeks = Math.max(1, Math.round((e - s) / (7 * 24 * 60 * 60 * 1000)));
+    }
+
+    // Unique assignees from sub-tasks
+    const assigneeIds = [...new Set(allSubtasks.flatMap(t => t.assignee_id ? t.assignee_id.split(',') : []).filter(Boolean))];
+    const assignees = assigneeIds.map(id => members.find(m => m.id === id)).filter(Boolean);
+
+    // Status derived from sub-tasks
+    let statusColor = '#5a6480'; // gray = no tasks
+    let statusLabel = 'Empty';
+    if (allSubtasks.length > 0) {
+      const doneCount = allSubtasks.filter(t => t.status === 'done').length;
+      const inProgressCount = allSubtasks.filter(t => t.status === 'in_progress').length;
+      if (doneCount === allSubtasks.length) {
+        statusColor = '#10b981'; statusLabel = 'Completed';
+      } else if (inProgressCount > 0 || doneCount > 0) {
+        statusColor = '#3b82f6'; statusLabel = 'In Progress';
+      } else {
+        statusColor = '#f59e0b'; statusLabel = 'Planned';
+      }
+    }
+
+    // Progress percentage
+    const progress = allSubtasks.length > 0
+      ? Math.round((allSubtasks.filter(t => t.status === 'done').length / allSubtasks.length) * 100)
+      : 0;
+
+    // Avatar stack (max 4 visible)
+    const maxAvatars = 4;
+    const visibleAssignees = assignees.slice(0, maxAvatars);
+    const extraCount = assignees.length - maxAvatars;
+    const avatarStackHTML = visibleAssignees.map((m, i) => `
+      <div class="pi-avatar" style="z-index: ${maxAvatars - i}; border-color: ${ws.color};" title="${_tlEscape(m.name)}">
+        ${_tlEscape(m.avatar_initials || '??')}
+      </div>
+    `).join('') + (extraCount > 0 ? `<div class="pi-avatar pi-avatar-extra" style="z-index: 0;">+${extraCount}</div>` : '');
+
+    // Description (truncate)
+    const desc = ws.description || '';
+    const shortDesc = desc.length > 100 ? desc.substring(0, 100) + '...' : desc;
+
+    if (viewMode === 'list') {
+      return `
+        <div class="pi-list-row" onclick="_tlOpenProject('${ws.id}')">
+          <div class="pi-list-color" style="background: ${ws.color};"></div>
+          <div class="pi-list-info">
+            <div class="pi-list-name">${_tlEscape(ws.name)}</div>
+            <div class="pi-list-meta">${dateRange}${desc ? ' \u00b7 ' + _tlEscape(shortDesc) : ''}</div>
+          </div>
+          <div class="pi-list-status">
+            <span class="pi-status-dot" style="background: ${statusColor};"></span>
+            <span class="pi-status-text">${statusLabel}</span>
+          </div>
+          <div class="pi-list-people">
+            <div class="pi-avatar-stack pi-avatar-stack--sm">${avatarStackHTML}</div>
+          </div>
+          <div class="pi-list-tasks">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <span>${taskCount} task${taskCount !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="pi-list-duration">
+            ${durationWeeks > 0 ? `${durationWeeks} wk${durationWeeks !== 1 ? 's' : ''}` : '\u2014'}
+          </div>
+          <div class="pi-list-arrow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+      `;
+    }
+
+    // Card view (default)
+    return `
+      <div class="pi-card" onclick="_tlOpenProject('${ws.id}')">
+        <div class="pi-card-header">
+          <div class="pi-card-color-bar" style="background: ${ws.color};"></div>
+          <div class="pi-card-top">
+            <div class="pi-card-status">
+              <span class="pi-status-dot" style="background: ${statusColor};"></span>
+              <span class="pi-status-text">${statusLabel}</span>
+            </div>
+            <button class="pi-card-menu" onclick="event.stopPropagation(); _tlShowProjectMenu('${ws.id}', event)" title="Options">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="pi-card-body">
+          <h3 class="pi-card-title">${_tlEscape(ws.name)}</h3>
+          ${desc ? `<p class="pi-card-desc">${_tlEscape(shortDesc)}</p>` : ''}
+          <div class="pi-card-date">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span>${dateRange}</span>
+          </div>
+          ${allSubtasks.length > 0 ? `
+          <div class="pi-card-progress">
+            <div class="pi-progress-bar">
+              <div class="pi-progress-fill" style="width: ${progress}%; background: ${ws.color};"></div>
+            </div>
+            <span class="pi-progress-label">${progress}%</span>
+          </div>
+          ` : ''}
+        </div>
+        <div class="pi-card-footer">
+          <div class="pi-avatar-stack">${avatarStackHTML}</div>
+          <div class="pi-card-stats">
+            <div class="pi-card-task-count" title="Tasks">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6M9 16h4"/></svg>
+              ${taskCount}
+            </div>
+            <div class="pi-card-task-count" title="Sub-tasks">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              ${subtaskCount}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Empty state
+  const emptyStateHTML = workspaces.length === 0 ? `
+    <div class="pi-empty-state">
+      <div class="pi-empty-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+      </div>
+      <h3 class="pi-empty-title">No projects yet</h3>
+      <p class="pi-empty-desc">Create your first project to start planning your team's work</p>
+      <button class="pi-btn-create-large" onclick="openNewProjectModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create First Project
+      </button>
+    </div>
+  ` : (filtered.length === 0 ? `
+    <div class="pi-empty-state pi-empty-state--search">
+      <div class="pi-empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <h3 class="pi-empty-title">No matching projects</h3>
+      <p class="pi-empty-desc">Try a different search term</p>
+    </div>
+  ` : '');
+
+  // View mode toggle
+  const gridActive = viewMode === 'grid' ? 'active' : '';
+  const listActive = viewMode === 'list' ? 'active' : '';
+
+  content.innerHTML = `
+    <div class="pi-page animate-slide-up">
+      <div class="pi-header">
+        <div class="pi-header-left">
+          <div class="pi-search-wrap">
+            <svg class="pi-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" class="pi-search" placeholder="Search projects..." value="${_tlEscape(AppState.timelineProjectSearch || '')}" oninput="_tlProjectSearch(this.value)">
+          </div>
+          <div class="pi-view-toggle">
+            <button class="pi-view-btn ${gridActive}" onclick="_tlSetProjectViewMode('grid')" title="Grid view">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+            <button class="pi-view-btn ${listActive}" onclick="_tlSetProjectViewMode('list')" title="List view">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="pi-header-right">
+          <span class="pi-project-count">${workspaces.length} project${workspaces.length !== 1 ? 's' : ''}</span>
+          <button class="pi-btn-new" onclick="openNewProjectModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Project
+          </button>
+        </div>
+      </div>
+
+      ${workspaces.length === 0 || filtered.length === 0 ? emptyStateHTML : `
+        <div class="pi-${viewMode === 'list' ? 'list' : 'grid'}">
+          ${cardsHTML}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ===== Project Index Helpers =====
+
+function _tlOpenProject(workspaceId) {
+  AppState.timelineSelectedProject = workspaceId;
+  // Filter projects (tasks) to only those belonging to this workspace
+  AppState.timelineFilterProject = '';
+  renderTimeline();
+}
+
+function _tlBackToProjects() {
+  AppState.timelineSelectedProject = null;
+  AppState.timelineFilterProject = '';
+  renderTimeline();
+}
+
+function _tlProjectSearch(value) {
+  AppState.timelineProjectSearch = value;
+  renderTimeline();
+}
+
+function _tlSetProjectViewMode(mode) {
+  AppState.timelineProjectViewMode = mode;
+  renderTimeline();
+}
+
+function _tlShowProjectMenu(workspaceId, event) {
+  // Remove any existing menu
+  const existing = document.getElementById('pi-context-menu');
+  if (existing) existing.remove();
+
+  const ws = (AppState.timelineWorkspaces || []).find(w => w.id === workspaceId);
+  if (!ws) return;
+
+  const menu = document.createElement('div');
+  menu.id = 'pi-context-menu';
+  menu.className = 'pi-context-menu';
+  menu.innerHTML = `
+    <button class="pi-context-item" onclick="_tlOpenProject('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      Open Timeline
+    </button>
+    <button class="pi-context-item" onclick="_tlEditProjectFromIndex('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit Project
+    </button>
+    <div class="pi-context-divider"></div>
+    <button class="pi-context-item pi-context-item--danger" onclick="_tlDeleteProject('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+      Delete Project
+    </button>
+  `;
+
+  // Position near the button
+  const rect = event.target.closest('.pi-card-menu').getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px';
+  menu.style.zIndex = '9999';
+
+  document.body.appendChild(menu);
+
+  // Close on outside click
+  const close = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove();
+      document.removeEventListener('click', close);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', close), 10);
+}
+
+function _tlEditProjectFromIndex(workspaceId) {
+  const ws = (AppState.timelineWorkspaces || []).find(w => w.id === workspaceId);
+  if (!ws) return;
+
+  const colorSwatches = TL_COLORS.map((c, i) =>
+    `<label class="tl-color-swatch" style="background: ${c};">
+      <input type="radio" name="tl-edit-project-color" value="${c}" ${c === ws.color ? 'checked' : ''} style="display:none;">
+      <span class="tl-swatch-check">&#10003;</span>
+    </label>`
+  ).join('');
+
+  const body = `
+    <div class="form-group">
+      <label class="form-label">Project Name</label>
+      <input type="text" id="tl-edit-proj-name" class="form-input" value="${_tlEscape(ws.name)}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea id="tl-edit-proj-desc" class="form-input" rows="3" placeholder="What is this project about?">${_tlEscape(ws.description || '')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Color</label>
+      <div class="tl-color-palette">${colorSwatches}</div>
+    </div>
+  `;
+
+  const footer = `
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="_tlSubmitEditProject('${ws.id}')">Save Changes</button>
+  `;
+
+  _tlShowModal(_tlModalShell('Edit Project', body, footer));
+}
+
+async function _tlSubmitEditProject(workspaceId) {
+  const name = document.getElementById('tl-edit-proj-name')?.value?.trim();
+  const description = document.getElementById('tl-edit-proj-desc')?.value?.trim() || '';
+  const colorInput = document.querySelector('input[name="tl-edit-project-color"]:checked');
+  const color = colorInput ? colorInput.value : '#14b8a6';
+
+  if (!name) {
+    showNotification('Please enter a project name', 'warning');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${AppState.authenticationUrl}/workspaces/${workspaceId}?user_uuid=${AppState.userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, color })
+    });
+    if (!resp.ok) throw new Error('Failed to update project');
+    closeTimelineModal();
+    showNotification('Project updated', 'success');
+    await timelineRefreshData();
+    renderTimeline();
+  } catch (e) {
+    showNotification('Error: ' + e.message, 'error');
+  }
+}
+
+async function _tlDeleteProject(workspaceId) {
+  const ws = (AppState.timelineWorkspaces || []).find(w => w.id === workspaceId);
+  if (!ws) return;
+
+  const wsTasks = (AppState.timelineProjects || []).filter(p => p.workspace_id === workspaceId);
+  const taskCount = wsTasks.length;
+  const msg = taskCount > 0
+    ? `Delete "${ws.name}" and its ${taskCount} task${taskCount > 1 ? 's' : ''} (plus all sub-tasks)? This cannot be undone.`
+    : `Delete "${ws.name}"? This cannot be undone.`;
+
+  if (!confirm(msg)) return;
+
+  try {
+    // Delete all sub-tasks and tasks belonging to this workspace
+    for (const proj of wsTasks) {
+      const subtasks = (AppState.timelineTasks || []).filter(t => t.project_id === proj.id);
+      for (const st of subtasks) {
+        await fetch(`${AppState.authenticationUrl}/timeline-tasks/${st.id}?user_uuid=${AppState.userId}`, { method: 'DELETE' });
+      }
+      await fetch(`${AppState.authenticationUrl}/projects/${proj.id}?user_uuid=${AppState.userId}`, { method: 'DELETE' });
+    }
+
+    const resp = await fetch(`${AppState.authenticationUrl}/workspaces/${workspaceId}?user_uuid=${AppState.userId}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Failed to delete project');
+    showNotification('Project deleted', 'success');
+
+    if (AppState.timelineSelectedProject === workspaceId) {
+      AppState.timelineSelectedProject = null;
+      AppState.timelineFilterProject = '';
+    }
+
+    await timelineRefreshData();
+    renderTimeline();
+  } catch (e) {
+    showNotification('Error: ' + e.message, 'error');
+  }
+}
+
+// ===== New Project Modal (creates a Workspace) =====
+
+function openNewProjectModal() {
+  const colorSwatches = TL_COLORS.map((c, i) =>
+    `<label class="tl-color-swatch" style="background: ${c};">
+      <input type="radio" name="tl-new-project-color" value="${c}" ${i === 0 ? 'checked' : ''} style="display:none;">
+      <span class="tl-swatch-check">&#10003;</span>
+    </label>`
+  ).join('');
+
+  const body = `
+    <div class="form-group">
+      <label class="form-label">Project Name</label>
+      <input type="text" id="tl-new-proj-name" class="form-input" placeholder="e.g. Website Redesign">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
+      <textarea id="tl-new-proj-desc" class="form-input" rows="3" placeholder="What is this project about?"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Color</label>
+      <div class="tl-color-palette">${colorSwatches}</div>
+    </div>
+  `;
+
+  const footer = `
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="_tlSubmitNewProject()">Create Project</button>
+  `;
+
+  _tlShowModal(_tlModalShell('New Project', body, footer));
+}
+
+async function _tlSubmitNewProject() {
+  const name = document.getElementById('tl-new-proj-name')?.value?.trim();
+  const description = document.getElementById('tl-new-proj-desc')?.value?.trim() || '';
+  const colorInput = document.querySelector('input[name="tl-new-project-color"]:checked');
+  const color = colorInput ? colorInput.value : '#14b8a6';
+
+  if (!name) {
+    showNotification('Please enter a project name', 'warning');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${AppState.authenticationUrl}/workspaces?user_uuid=${AppState.userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, color })
+    });
+    if (!resp.ok) throw new Error('Failed to create project');
+    closeTimelineModal();
+    showNotification('Project created', 'success');
+    await timelineRefreshData();
+    renderTimeline();
+  } catch (e) {
+    showNotification('Error: ' + e.message, 'error');
+  }
+}
+
+// ===== Detail Gantt View (scoped to a Workspace) =====
+
+function _tlBuildTeamAssignments(scopedTasks) {
+  const members = AppState.timelineTeamMembers || [];
+  const projects = AppState.timelineProjects || [];
+  
+  if (scopedTasks.length === 0) {
+    return ''; // Don't show section if no tasks
+  }
+
+  // Group tasks by assignee (handle comma-separated IDs)
+  const tasksByMember = {};
+  scopedTasks.forEach(task => {
+    if (task.assignee_id) {
+      const ids = task.assignee_id.split(',');
+      ids.forEach(id => {
+        if (!tasksByMember[id]) tasksByMember[id] = [];
+        tasksByMember[id].push(task);
+      });
+    }
+  });
+
+  // Get members who have assignments
+  const assignedMembers = members.filter(m => tasksByMember[m.id]);
+  
+  if (assignedMembers.length === 0) {
+    return ''; // Don't show if no one is assigned
+  }
+
+  const memberCards = assignedMembers.map(member => {
+    const tasks = tasksByMember[member.id] || [];
+    const activeTasks = tasks.filter(t => t.status === 'in_progress');
+    const plannedTasks = tasks.filter(t => t.status === 'planned');
+    const doneTasks = tasks.filter(t => t.status === 'done');
+
+    // Current task (first in_progress task)
+    const currentTask = activeTasks[0];
+    const currentTaskProject = currentTask ? projects.find(p => p.id === currentTask.project_id) : null;
+
+    const taskListHTML = tasks.slice(0, 5).map(task => {
+      const project = projects.find(p => p.id === task.project_id);
+      const statusIcon = task.status === 'done' ? '✓' 
+        : task.status === 'in_progress' ? '▶' 
+        : '○';
+      const statusClass = task.status === 'done' ? 'tm-task-done' 
+        : task.status === 'in_progress' ? 'tm-task-active' 
+        : 'tm-task-planned';
+      
+      return `
+        <div class="tm-task-item ${statusClass}" onclick="openEditTaskModal('${task.id}')">
+          <span class="tm-task-status">${statusIcon}</span>
+          <div class="tm-task-info">
+            <div class="tm-task-name">${_tlEscape(task.title)}</div>
+            <div class="tm-task-meta">
+              ${project ? `<span style="color: ${project.color};">${_tlEscape(project.name)}</span>` : ''}
+              <span>${task.start_date} → ${task.end_date}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="tm-member-card">
+        <div class="tm-member-header">
+          <div class="tm-member-avatar">${_tlEscape(member.avatar_initials)}</div>
+          <div class="tm-member-info">
+            <div class="tm-member-name">${_tlEscape(member.name)}</div>
+            <div class="tm-member-role">${_tlEscape(member.role || 'Team Member')}</div>
+          </div>
+          <div class="tm-member-stats">
+            <div class="tm-stat">
+              <span class="tm-stat-value">${activeTasks.length}</span>
+              <span class="tm-stat-label">Active</span>
+            </div>
+            <div class="tm-stat">
+              <span class="tm-stat-value">${plannedTasks.length}</span>
+              <span class="tm-stat-label">Planned</span>
+            </div>
+            <div class="tm-stat">
+              <span class="tm-stat-value">${doneTasks.length}</span>
+              <span class="tm-stat-label">Done</span>
+            </div>
+          </div>
+        </div>
+        ${currentTask ? `
+          <div class="tm-current-task">
+            <div class="tm-current-label">Currently Working On</div>
+            <div class="tm-current-info">
+              <div class="tm-current-name">${_tlEscape(currentTask.title)}</div>
+              ${currentTaskProject ? `<span class="tm-current-project" style="color: ${currentTaskProject.color};">${_tlEscape(currentTaskProject.name)}</span>` : ''}
+            </div>
+          </div>
+        ` : ''}
+        <div class="tm-task-list">
+          ${taskListHTML}
+        </div>
+        ${tasks.length > 5 ? `<div class="tm-more-tasks">+${tasks.length - 5} more tasks</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="card tm-section">
+      <div class="tm-section-header">
+        <h3 class="tm-section-title">Team Assignments</h3>
+        <div class="tm-section-subtitle">${assignedMembers.length} member${assignedMembers.length !== 1 ? 's' : ''} working on ${scopedTasks.length} task${scopedTasks.length !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="tm-grid">
+        ${memberCards}
+      </div>
+    </div>
+  `;
+}
+
+function _tlRenderDetailView(content) {
+  const workspaceId = AppState.timelineSelectedProject;
+  const workspace = (AppState.timelineWorkspaces || []).find(w => w.id === workspaceId);
+  const projectName = workspace ? workspace.name : 'Project';
+
+  // Update header
+  const titleEl = document.getElementById('view-title');
+  const subEl = document.getElementById('view-subtitle');
+  if (titleEl) titleEl.textContent = projectName;
+  if (subEl) subEl.textContent = workspace?.description || 'Timeline and task management.';
+
+  // Scope: only show tasks (projects) that belong to this workspace
+  // Temporarily override filtered data for the Gantt
+  const allProjects = AppState.timelineProjects || [];
+  const allTasks = AppState.timelineTasks || [];
+  const scopedProjects = allProjects.filter(p => p.workspace_id === workspaceId);
+  
+  // Also filter sub-tasks to only those belonging to projects in this workspace
+  const scopedProjectIds = new Set(scopedProjects.map(p => p.id));
+  const scopedTasks = allTasks.filter(t => scopedProjectIds.has(t.project_id));
+
+  // Store original and override for the Gantt build
+  const origProjects = AppState.timelineProjects;
+  const origTasks = AppState.timelineTasks;
+  AppState.timelineProjects = scopedProjects;
+  AppState.timelineTasks = scopedTasks;
+
   const viewMode = AppState.timelineViewMode || 'timeline';
   const toolbar = _tlBuildToolbar();
   const body = viewMode === 'list' ? _tlBuildListView() : _ganttBuildChart();
+  const teamSection = _tlBuildTeamAssignments(scopedTasks);
+
+  // Restore
+  AppState.timelineProjects = origProjects;
+  AppState.timelineTasks = origTasks;
+
+  const backBtn = `
+    <button class="pi-back-btn" onclick="_tlBackToProjects()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      <span>All Projects</span>
+    </button>
+  `;
 
   content.innerHTML = `
     <div class="animate-slide-up" style="display: flex; flex-direction: column; gap: 16px;">
+      ${backBtn}
       ${toolbar}
       ${body}
+      ${teamSection}
     </div>
   `;
 }
@@ -700,7 +1345,11 @@ function showTaskTooltip(event, taskId) {
   const task = (AppState.timelineTasks || []).find(t => t.id === taskId);
   if (!task) return;
   const project = (AppState.timelineProjects || []).find(p => p.id === task.project_id);
-  const member = (AppState.timelineTeamMembers || []).find(m => m.id === task.assignee_id);
+  const assigneeIds = task.assignee_id ? task.assignee_id.split(',') : [];
+  const assigneeNames = assigneeIds.map(id => {
+    const m = (AppState.timelineTeamMembers || []).find(mm => mm.id === id);
+    return m ? _tlEscape(m.name) : null;
+  }).filter(Boolean);
 
   const tooltip = document.createElement('div');
   tooltip.id = 'tl-tooltip';
@@ -709,7 +1358,7 @@ function showTaskTooltip(event, taskId) {
     <div class="tl-tooltip-title">${_tlEscape(task.title)}</div>
     <div class="tl-tooltip-meta">
       ${project ? `<span style="color: ${project.color};">${_tlEscape(project.name)}</span>` : ''}
-      ${member ? `<span>${_tlEscape(member.name)}</span>` : ''}
+      ${assigneeNames.length > 0 ? `<span>${assigneeNames.join(', ')}</span>` : ''}
     </div>
     <div class="tl-tooltip-dates">${task.start_date} &rarr; ${task.end_date}</div>
     <div class="tl-tooltip-hours">${task.hours_per_week}h/week &middot; ${_tlEscape(task.status)}</div>
@@ -818,17 +1467,20 @@ async function submitCreateProject() {
   const color = colorInput ? colorInput.value : '#14b8a6';
 
   if (!name) {
-    showNotification('Please enter a project name', 'warning');
+    showNotification('Please enter a task name', 'warning');
     return;
   }
+
+  // If inside a workspace detail view, attach workspace_id
+  const workspace_id = AppState.timelineSelectedProject || null;
 
   try {
     const resp = await fetch(`${AppState.authenticationUrl}/projects?user_uuid=${AppState.userId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, color })
+      body: JSON.stringify({ name, color, workspace_id })
     });
-    if (!resp.ok) throw new Error('Failed to create project');
+    if (!resp.ok) throw new Error('Failed to create task');
     closeTimelineModal();
     showNotification('Task created', 'success');
     await timelineRefreshData();
@@ -893,11 +1545,17 @@ async function submitCreateMember() {
 // ===== Create Task Modal =====
 
 function openCreateTaskModal(prefillProjectId, prefillAssignee) {
-  const projects = AppState.timelineProjects || [];
+  const allProjects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
 
-  if (projects.length === 0 || members.length === 0) {
-    showNotification('Create at least one task and one team member first.', 'warning');
+  // Scope to current workspace if inside a project detail view
+  const workspaceId = AppState.timelineSelectedProject;
+  const projects = workspaceId
+    ? allProjects.filter(p => p.workspace_id === workspaceId)
+    : allProjects;
+
+  if (projects.length === 0) {
+    showNotification('Create at least one task first.', 'warning');
     return;
   }
 
@@ -905,9 +1563,15 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
     `<option value="${p.id}" ${p.id === prefillProjectId ? 'selected' : ''}>${_tlEscape(p.name)}</option>`
   ).join('');
 
-  const memberOpts = members.map(m =>
-    `<option value="${m.id}" ${m.id === prefillAssignee ? 'selected' : ''}>${_tlEscape(m.name)}</option>`
-  ).join('');
+  const prefillList = prefillAssignee ? prefillAssignee.split(',') : [];
+  const memberCheckboxes = members.length > 0 ? members.map(m => {
+    const checked = prefillList.includes(m.id) ? 'checked' : '';
+    return `<label class="tl-assignee-chip ${checked ? 'selected' : ''}">
+      <input type="checkbox" name="tl-task-assignees" value="${m.id}" ${checked} onchange="this.parentElement.classList.toggle('selected', this.checked)">
+      <span class="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
+      <span class="tl-assignee-name">${_tlEscape(m.name)}</span>
+    </label>`;
+  }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No team members yet</span>';
 
   const today = _tlDateToISO(new Date());
   const nextWeek = _tlDateToISO(_tlAddDays(new Date(), 7));
@@ -922,8 +1586,8 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
       <select id="tl-task-project" class="form-input">${projectOpts}</select>
     </div>
     <div class="form-group">
-      <label class="form-label">Assignee</label>
-      <select id="tl-task-assignee" class="form-input">${memberOpts}</select>
+      <label class="form-label">Assignees (optional)</label>
+      <div class="tl-assignee-grid">${memberCheckboxes}</div>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
       <div class="form-group">
@@ -966,14 +1630,15 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
 async function submitCreateTask() {
   const title = document.getElementById('tl-task-title')?.value?.trim();
   const project_id = document.getElementById('tl-task-project')?.value;
-  const assignee_id = document.getElementById('tl-task-assignee')?.value;
+  const checkedBoxes = document.querySelectorAll('input[name="tl-task-assignees"]:checked');
+  const assignee_id = Array.from(checkedBoxes).map(cb => cb.value).join(',') || null;
   const start_date = document.getElementById('tl-task-start')?.value;
   const end_date = document.getElementById('tl-task-end')?.value;
   const hours_per_week = parseInt(document.getElementById('tl-task-hours')?.value) || 8;
   const taskStatus = document.getElementById('tl-task-status')?.value || 'planned';
   const description = document.getElementById('tl-task-desc')?.value?.trim() || '';
 
-  if (!title || !project_id || !assignee_id || !start_date || !end_date) {
+  if (!title || !project_id || !start_date || !end_date) {
     showNotification('Please fill in all required fields', 'warning');
     return;
   }
@@ -1004,16 +1669,28 @@ function openEditTaskModal(taskId) {
   const task = (AppState.timelineTasks || []).find(t => t.id === taskId);
   if (!task) return;
 
-  const projects = AppState.timelineProjects || [];
+  const allProjects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
+
+  // Scope to current workspace if inside a project detail view
+  const workspaceId = AppState.timelineSelectedProject;
+  const projects = workspaceId
+    ? allProjects.filter(p => p.workspace_id === workspaceId)
+    : allProjects;
 
   const projectOpts = projects.map(p =>
     `<option value="${p.id}" ${p.id === task.project_id ? 'selected' : ''}>${_tlEscape(p.name)}</option>`
   ).join('');
 
-  const memberOpts = members.map(m =>
-    `<option value="${m.id}" ${m.id === task.assignee_id ? 'selected' : ''}>${_tlEscape(m.name)}</option>`
-  ).join('');
+  const currentAssignees = task.assignee_id ? task.assignee_id.split(',') : [];
+  const memberCheckboxes = members.length > 0 ? members.map(m => {
+    const checked = currentAssignees.includes(m.id) ? 'checked' : '';
+    return `<label class="tl-assignee-chip ${checked ? 'selected' : ''}">
+      <input type="checkbox" name="tl-edit-assignees" value="${m.id}" ${checked} onchange="this.parentElement.classList.toggle('selected', this.checked)">
+      <span class="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
+      <span class="tl-assignee-name">${_tlEscape(m.name)}</span>
+    </label>`;
+  }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No team members yet</span>';
 
   const statusOpts = ['planned', 'in_progress', 'done'].map(s =>
     `<option value="${s}" ${s === task.status ? 'selected' : ''}>${s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}</option>`
@@ -1029,8 +1706,8 @@ function openEditTaskModal(taskId) {
       <select id="tl-edit-project" class="form-input">${projectOpts}</select>
     </div>
     <div class="form-group">
-      <label class="form-label">Assignee</label>
-      <select id="tl-edit-assignee" class="form-input">${memberOpts}</select>
+      <label class="form-label">Assignees (optional)</label>
+      <div class="tl-assignee-grid">${memberCheckboxes}</div>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
       <div class="form-group">
@@ -1070,7 +1747,8 @@ function openEditTaskModal(taskId) {
 async function submitEditTask(taskId) {
   const title = document.getElementById('tl-edit-title')?.value?.trim();
   const project_id = document.getElementById('tl-edit-project')?.value;
-  const assignee_id = document.getElementById('tl-edit-assignee')?.value;
+  const checkedBoxes = document.querySelectorAll('input[name="tl-edit-assignees"]:checked');
+  const assignee_id = Array.from(checkedBoxes).map(cb => cb.value).join(',') || null;
   const start_date = document.getElementById('tl-edit-start')?.value;
   const end_date = document.getElementById('tl-edit-end')?.value;
   const hours_per_week = parseInt(document.getElementById('tl-edit-hours')?.value) || 8;
@@ -1143,4 +1821,16 @@ if (typeof window !== 'undefined') {
   window.submitCreateMember = submitCreateMember;
   window.showTaskTooltip = showTaskTooltip;
   window.hideTaskTooltip = hideTaskTooltip;
+
+  // Project index exports
+  window._tlOpenProject = _tlOpenProject;
+  window._tlBackToProjects = _tlBackToProjects;
+  window._tlProjectSearch = _tlProjectSearch;
+  window._tlSetProjectViewMode = _tlSetProjectViewMode;
+  window._tlShowProjectMenu = _tlShowProjectMenu;
+  window._tlEditProjectFromIndex = _tlEditProjectFromIndex;
+  window._tlSubmitEditProject = _tlSubmitEditProject;
+  window._tlDeleteProject = _tlDeleteProject;
+  window.openNewProjectModal = openNewProjectModal;
+  window._tlSubmitNewProject = _tlSubmitNewProject;
 }

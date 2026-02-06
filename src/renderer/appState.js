@@ -77,7 +77,15 @@ const AppState = {
   timelineZoom: 'week',
   timelineStartDate: null,
   timelineFilterProject: '',
-  timelineFilterPerson: ''
+  timelineFilterPerson: '',
+
+  // Workspaces (User-facing: "Projects") - top-level grouping
+  timelineWorkspaces: [],
+
+  // Timeline Project Index
+  timelineSelectedProject: null, // null = show project index, string = workspace id to show Gantt for
+  timelineProjectSearch: '',
+  timelineProjectViewMode: 'grid' // 'grid' | 'list'
 };
 
 // Export to global scope

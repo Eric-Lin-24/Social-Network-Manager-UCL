@@ -13,11 +13,12 @@ import shutil
 from pathlib import Path
 
 from database import get_db, init_db, get_user_by_username
-from models import Project, TeamMember, TimelineTask
+from models import Workspace, Project, TeamMember, TimelineTask
 from schemas import (
     User,
     UserCreate,
     UserSignIn,
+    WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse,
     ProjectCreate, ProjectUpdate, ProjectResponse,
     TeamMemberCreate, TeamMemberUpdate, TeamMemberResponse,
     TimelineTaskCreate, TimelineTaskUpdate, TimelineTaskResponse,
@@ -89,7 +90,63 @@ async def root():
 
 
 # ============================================
-# PROJECT ENDPOINTS
+# WORKSPACE ENDPOINTS (User-facing: "Project")
+# ============================================
+
+@app.post("/workspaces", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
+def create_workspace(ws: WorkspaceCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_ws = Workspace(
+        id=str(uuid.uuid4()),
+        name=ws.name,
+        description=ws.description or "",
+        color=ws.color or "#14b8a6",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_ws)
+    db.commit()
+    db.refresh(db_ws)
+    return db_ws
+
+
+@app.get("/workspaces", response_model=List[WorkspaceResponse])
+def list_workspaces(user_uuid: str, db: Session = Depends(get_db)):
+    return db.query(Workspace).filter(Workspace.owner_uuid == user_uuid).all()
+
+
+@app.get("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+def get_workspace(workspace_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.owner_uuid == user_uuid).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return ws
+
+
+@app.put("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+def update_workspace(workspace_id: str, ws: WorkspaceUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.owner_uuid == user_uuid).first()
+    if not db_ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    for field, value in ws.dict(exclude_unset=True).items():
+        setattr(db_ws, field, value)
+    db.commit()
+    db.refresh(db_ws)
+    return db_ws
+
+
+@app.delete("/workspaces/{workspace_id}")
+def delete_workspace(workspace_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.owner_uuid == user_uuid).first()
+    if not db_ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    # Cascade: unlink projects (set workspace_id to None)
+    db.query(Project).filter(Project.workspace_id == workspace_id, Project.owner_uuid == user_uuid).update({"workspace_id": None})
+    db.delete(db_ws)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# PROJECT ENDPOINTS (User-facing: "Task")
 # ============================================
 
 @app.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -98,6 +155,7 @@ def create_project(project: ProjectCreate, user_uuid: str, db: Session = Depends
         id=str(uuid.uuid4()),
         name=project.name,
         color=project.color or "#14b8a6",
+        workspace_id=project.workspace_id,
         owner_uuid=user_uuid,
     )
     db.add(db_project)
@@ -107,8 +165,11 @@ def create_project(project: ProjectCreate, user_uuid: str, db: Session = Depends
 
 
 @app.get("/projects", response_model=List[ProjectResponse])
-def list_projects(user_uuid: str, db: Session = Depends(get_db)):
-    return db.query(Project).filter(Project.owner_uuid == user_uuid).all()
+def list_projects(user_uuid: str, workspace_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Project).filter(Project.owner_uuid == user_uuid)
+    if workspace_id:
+        query = query.filter(Project.workspace_id == workspace_id)
+    return query.all()
 
 
 @app.get("/projects/{project_id}", response_model=ProjectResponse)

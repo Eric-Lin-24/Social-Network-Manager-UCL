@@ -24,20 +24,47 @@ class Token(BaseModel):
     token_type: str
 
 
-# --- Project Schemas ---
+# --- Workspace Schemas (User-facing: "Project") ---
+
+class WorkspaceCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    color: Optional[str] = "#14b8a6"
+
+class WorkspaceUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+
+class WorkspaceResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    color: str
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Project Schemas (User-facing: "Task") ---
 
 class ProjectCreate(BaseModel):
     name: str
     color: Optional[str] = "#14b8a6"
+    workspace_id: Optional[str] = None
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 class ProjectResponse(BaseModel):
     id: str
     name: str
     color: str
+    workspace_id: Optional[str] = None
     owner_uuid: str
     created_at: datetime
 
@@ -78,7 +105,7 @@ class TimelineTaskCreate(BaseModel):
     title: str
     description: Optional[str] = ""
     project_id: str
-    assignee_id: str
+    assignee_id: Optional[str] = None
     start_date: str
     end_date: str
     hours_per_week: Optional[int] = 8
@@ -99,7 +126,7 @@ class TimelineTaskResponse(BaseModel):
     title: str
     description: str
     project_id: str
-    assignee_id: str
+    assignee_id: Optional[str] = None
     start_date: str
     end_date: str
     hours_per_week: int

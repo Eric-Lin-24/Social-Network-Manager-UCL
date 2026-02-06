@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 from models import Base, User
 import os
@@ -18,9 +18,21 @@ else:
     engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def _migrate_db():
+    """Run lightweight schema migrations for new columns on existing tables."""
+    inspector = inspect(engine)
+
+    # Add workspace_id to projects table if missing
+    if "projects" in inspector.get_table_names():
+        cols = [c["name"] for c in inspector.get_columns("projects")]
+        if "workspace_id" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE projects ADD COLUMN workspace_id TEXT"))
+
 def init_db():
-    """Initialize database tables"""
+    """Initialize database tables and run migrations"""
     Base.metadata.create_all(bind=engine)
+    _migrate_db()
 
 def get_db():
     """Dependency to get database session"""
