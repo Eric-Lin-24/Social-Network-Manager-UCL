@@ -31,6 +31,10 @@ const viewMeta = {
   timeline: {
     title: 'Resource Timeline',
     subtitle: 'Plan and visualize team capacity and task assignments.'
+  },
+  people: {
+    title: 'People',
+    subtitle: 'Monitor team capacity, utilization, and workload distribution.'
   }
 };
 
@@ -201,6 +205,10 @@ function renderApp() {
       if (typeof renderTimeline === 'function') renderTimeline();
       break;
 
+    case 'people':
+      if (typeof renderPeople === 'function') renderPeople();
+      break;
+
     default:
       AppState.currentView = 'dashboard';
       if (typeof renderDashboard === 'function') renderDashboard();
@@ -316,6 +324,16 @@ async function refreshCurrentView() {
           await maybeAwait(timelineRefreshData);
         }
         if (typeof renderTimeline === 'function') renderTimeline();
+        break;
+      }
+
+      case 'people': {
+        showLoadingOverlay('Syncing people…');
+        if (typeof timelineRefreshData === 'function') {
+          await maybeAwait(timelineRefreshData);
+        }
+        AppState._peopleInitialLoad = false;
+        if (typeof renderPeople === 'function') renderPeople();
         break;
       }
 

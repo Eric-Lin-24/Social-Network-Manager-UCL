@@ -284,11 +284,10 @@ function _tlBuildToolbar() {
     rangeLabel = `${months[rangeStart.getMonth()]} ${rangeStart.getDate()}, ${rangeStart.getFullYear()} \u2013 ${months[rangeEnd.getMonth()]} ${rangeEnd.getDate()}, ${rangeEnd.getFullYear()}`;
   }
 
-  const zoomBtn = (val, label) =>
-    `<button class="tl-tab-btn ${zoom === val ? 'active' : ''}" onclick="timelineSetZoom('${val}')">${label}</button>`;
-
-  const viewBtn = (val, label) =>
-    `<button class="tl-tab-btn ${viewMode === val ? 'active' : ''}" onclick="timelineSetViewMode('${val}')">${label}</button>`;
+  // Compute sliding pill position for view mode
+  const viewModeIndex = viewMode === 'list' ? 1 : 0;
+  // Compute sliding pill position for zoom
+  const zoomIndex = zoom === 'day' ? 0 : zoom === 'month' ? 2 : 1;
 
   const projectOpts = projects.map(p =>
     `<option value="${p.id}" ${AppState.timelineFilterProject === p.id ? 'selected' : ''}>${_tlEscape(p.name)}</option>`
@@ -299,40 +298,78 @@ function _tlBuildToolbar() {
   ).join('');
 
   return `
-    <div class="tl-toolbar card">
-      <div class="tl-toolbar-left">
-        <div class="tl-tab-group">
-          ${viewBtn('timeline', 'Gantt')}
-          ${viewBtn('list', 'List')}
+    <div class="tl-toolbar-v2">
+      <div class="tl-toolbar-row tl-toolbar-row--top">
+        <div class="tl-toolbar-section">
+          <div class="tl-pill-group" data-count="2">
+            <div class="tl-pill-slider" style="--pill-index: ${viewModeIndex}; --pill-count: 2;"></div>
+            <button class="tl-pill-btn ${viewMode === 'timeline' ? 'active' : ''}" onclick="timelineSetViewMode('timeline')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="11" width="7" height="4" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              Gantt
+            </button>
+            <button class="tl-pill-btn ${viewMode === 'list' ? 'active' : ''}" onclick="timelineSetViewMode('list')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
+              List
+            </button>
+          </div>
+
+          <div class="tl-separator"></div>
+
+          <div class="tl-pill-group" data-count="3">
+            <div class="tl-pill-slider" style="--pill-index: ${zoomIndex}; --pill-count: 3;"></div>
+            <button class="tl-pill-btn ${zoom === 'day' ? 'active' : ''}" onclick="timelineSetZoom('day')">Day</button>
+            <button class="tl-pill-btn ${zoom === 'week' ? 'active' : ''}" onclick="timelineSetZoom('week')">Week</button>
+            <button class="tl-pill-btn ${zoom === 'month' ? 'active' : ''}" onclick="timelineSetZoom('month')">Month</button>
+          </div>
         </div>
-        <div class="tl-tab-group">
-          ${zoomBtn('day', 'Day')}
-          ${zoomBtn('week', 'Week')}
-          ${zoomBtn('month', 'Month')}
+
+        <div class="tl-toolbar-section tl-toolbar-section--nav">
+          <button class="tl-nav-btn" onclick="_tlNavigate(-1)" title="Previous">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="tl-range-label-v2">${rangeLabel}</span>
+          <button class="tl-nav-btn" onclick="_tlNavigate(1)" title="Next">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="tl-today-btn" onclick="_tlGoToToday()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
+            Today
+          </button>
         </div>
       </div>
-      <div class="tl-toolbar-center">
-        <button class="btn btn-ghost btn-sm" onclick="_tlNavigate(-1)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <span class="tl-range-label">${rangeLabel}</span>
-        <button class="btn btn-ghost btn-sm" onclick="_tlNavigate(1)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick="_tlGoToToday()">Today</button>
-      </div>
-      <div class="tl-toolbar-right">
-        <select class="tl-filter-select" onchange="timelineSetFilterProject(this.value)">
-          <option value="">All Tasks</option>
-          ${projectOpts}
-        </select>
-        <select class="tl-filter-select" onchange="timelineSetFilterPerson(this.value)">
-          <option value="">All People</option>
-          ${memberOpts}
-        </select>
-        <button class="btn btn-primary btn-sm" onclick="openCreateTaskModal()">+ Sub-task</button>
-        <button class="btn btn-secondary btn-sm" onclick="openCreateProjectModal()">+ Task</button>
-        <button class="btn btn-secondary btn-sm" onclick="openCreateMemberModal()">+ Member</button>
+
+      <div class="tl-toolbar-row tl-toolbar-row--bottom">
+        <div class="tl-toolbar-section">
+          <div class="tl-filter-wrap">
+            <svg class="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12h6M9 16h4"/></svg>
+            <select class="tl-filter-v2" onchange="timelineSetFilterProject(this.value)">
+              <option value="">All Tasks</option>
+              ${projectOpts}
+            </select>
+          </div>
+          <div class="tl-filter-wrap">
+            <svg class="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg>
+            <select class="tl-filter-v2" onchange="timelineSetFilterPerson(this.value)">
+              <option value="">All People</option>
+              ${memberOpts}
+            </select>
+          </div>
+        </div>
+
+        <div class="tl-toolbar-section tl-toolbar-section--actions">
+          <button class="tl-action-btn tl-action-btn--primary" onclick="openCreateTaskModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Sub-task
+          </button>
+          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateProjectModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Task
+          </button>
+          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+            Member
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -382,17 +419,24 @@ function _ganttBuildChart() {
 
   if (rows.length === 0) {
     return `
-      <div class="card" style="padding: 48px; text-align: center;">
-        <div style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:inline-block;">
+      <div class="card gantt-empty-state">
+        <div class="gantt-empty-icon">
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="10" y1="14" x2="14" y2="14" opacity="0.5"/><line x1="10" y1="17" x2="12" y2="17" opacity="0.3"/>
           </svg>
         </div>
-        <h3 style="color: var(--text-primary); margin-bottom: 8px;">No tasks yet</h3>
-        <p style="color: var(--text-muted); margin-bottom: 16px;">Create a task and add sub-tasks to see them on the Gantt chart.</p>
-        <div style="display: flex; gap: 8px; justify-content: center;">
-          <button class="btn btn-primary" onclick="openCreateProjectModal()">+ Create Task</button>
-          <button class="btn btn-secondary" onclick="openCreateMemberModal()">+ Add Member</button>
+        <h3 class="gantt-empty-title">No tasks yet</h3>
+        <p class="gantt-empty-desc">Create a task and add sub-tasks to see them on the Gantt chart.</p>
+        <div class="gantt-empty-actions">
+          <button class="tl-action-btn tl-action-btn--primary" onclick="openCreateProjectModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Task
+          </button>
+          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+            Add Member
+          </button>
         </div>
       </div>
     `;
@@ -554,10 +598,20 @@ function _tlBuildListView() {
 
   if (filteredTasks.length === 0) {
     return `
-      <div class="card" style="padding: 48px; text-align: center;">
-        <h3 style="color: var(--text-primary); margin-bottom: 8px;">No sub-tasks yet</h3>
-        <p style="color: var(--text-muted); margin-bottom: 16px;">Create a sub-task to see it in the list.</p>
-        <button class="btn btn-primary" onclick="openCreateTaskModal()">+ Create Sub-task</button>
+      <div class="card gantt-empty-state">
+        <div class="gantt-empty-icon">
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+        </div>
+        <h3 class="gantt-empty-title">No sub-tasks yet</h3>
+        <p class="gantt-empty-desc">Create a sub-task to see it in the list.</p>
+        <div class="gantt-empty-actions">
+          <button class="tl-action-btn tl-action-btn--primary" onclick="openCreateTaskModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Sub-task
+          </button>
+        </div>
       </div>
     `;
   }
@@ -588,21 +642,23 @@ function _tlBuildListView() {
   }).join('');
 
   return `
-    <div class="card tl-container">
-      <table class="tl-list-table">
-        <thead>
-          <tr>
-            <th>Sub-task</th>
-            <th>Task</th>
-            <th>Assignee</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Effort</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
+    <div class="gantt-container">
+      <div class="gantt-scroll">
+        <table class="tl-list-table">
+          <thead>
+            <tr>
+              <th>Sub-task</th>
+              <th>Task</th>
+              <th>Assignee</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Effort</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </div>
   `;
 }
