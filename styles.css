@@ -1706,7 +1706,7 @@ textarea {
 
 
 /* =========================================
-   TIMELINE VIEW - Resource Planning Grid
+   TIMELINE VIEW - Gantt Chart
    ========================================= */
 
 /* Toolbar */
@@ -1789,214 +1789,321 @@ textarea {
   color: var(--text-primary);
 }
 
-/* Container */
-.tl-container {
-  overflow-x: auto;
+/* ===== Gantt Chart Grid ===== */
+
+.gantt-container {
   padding: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Grid */
-.tl-grid {
+.gantt-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.gantt-grid {
   display: grid;
-  min-width: max-content;
   position: relative;
+  min-width: 100%;
 }
 
-/* Header cells */
-.tl-header-cell {
-  padding: 12px 8px;
+/* ---- Sidebar header (top-left corner) ---- */
+.gantt-sidebar-header {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border-default);
+  border-right: 2px solid var(--border-default);
+  padding: 10px 16px;
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 2px solid var(--border-default);
-  text-align: center;
-  position: sticky;
-  top: 0;
-  background: var(--bg-secondary);
-  z-index: 2;
-}
-
-.tl-member-header {
-  text-align: left;
-  padding-left: 16px;
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  background: var(--bg-secondary);
-}
-
-/* Member cells (left column) */
-.tl-member-cell {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+}
+
+/* Month header corner cell */
+.gantt-month-label-cell {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  background: var(--bg-tertiary);
+  border-right: 2px solid var(--border-default);
   border-bottom: 1px solid var(--border-subtle);
-  border-right: 1px solid var(--border-default);
-  position: sticky;
-  left: 0;
-  background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-  z-index: 2;
-  min-height: 80px;
 }
 
-.tl-member-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--accent-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.6875rem;
-  color: #fff;
-  flex-shrink: 0;
-  letter-spacing: 0.03em;
-}
-
-.tl-member-info {
-  min-width: 0;
-}
-
-.tl-member-name {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tl-member-role {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Time cells */
-.tl-cell {
+/* ---- Month spans (day zoom) ---- */
+.gantt-month-label {
+  background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-subtle);
   border-right: 1px solid var(--border-subtle);
-  padding: 4px;
-  min-height: 80px;
-  position: relative;
+  padding: 6px 12px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.tl-cell:hover {
+/* ---- Date column headers ---- */
+.gantt-date-header {
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border-default);
+  border-right: 1px solid var(--border-subtle);
+  padding: 10px 2px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.gantt-date-header.gantt-col-today {
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
+.gantt-date-header.gantt-col-weekend {
+  color: var(--text-muted);
+}
+
+/* ---- Project group row ---- */
+.gantt-project-label {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-default);
+  border-right: 2px solid var(--border-default);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  height: 36px;
+  transition: background var(--transition-fast);
+}
+
+.gantt-project-label:hover {
   background: var(--glass-hover);
 }
 
-.tl-cell.tl-weekend {
-  background: rgba(0, 0, 0, 0.12);
-}
-
-.tl-cell.tl-col-today,
-.tl-header-cell.tl-col-today {
-  background: rgba(239, 68, 68, 0.05);
-}
-
-/* Capacity badges */
-.tl-capacity-badge {
-  font-size: 0.5625rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 100px;
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  letter-spacing: 0.02em;
-}
-
-.tl-cap-ok {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.tl-cap-warning {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.tl-cap-over {
-  background: var(--error-soft);
-  color: var(--error);
-}
-
-/* Task bars */
-.tl-task-bar {
-  height: 28px;
-  border-radius: 6px;
+.gantt-add-subtask-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px;
+  justify-content: center;
   cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
-  overflow: hidden;
-  position: relative;
-  z-index: 1;
-  opacity: 0.92;
+  opacity: 0;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
 }
 
-.tl-task-bar:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+.gantt-project-label:hover .gantt-add-subtask-btn {
   opacity: 1;
-  z-index: 5;
 }
 
-.tl-task-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
+.gantt-add-subtask-btn:hover {
+  background: var(--accent-primary);
   color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  border-color: var(--accent-primary);
 }
 
-.tl-task-tag {
-  font-size: 0.5625rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.2);
-  padding: 1px 6px;
-  border-radius: 100px;
-  white-space: nowrap;
+.gantt-toggle-arrow {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  min-width: 12px;
+  text-align: center;
+}
+
+.gantt-project-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
-.tl-task-bar.status-done {
-  opacity: 0.45;
+.gantt-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Today marker */
-.tl-today-marker {
+.gantt-project-count {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-radius: 100px;
+  padding: 2px 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.gantt-project-cell {
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.gantt-project-cell.gantt-col-today {
+  background: rgba(20, 184, 166, 0.06);
+}
+
+/* ---- Aggregate bar (project row) ---- */
+.gantt-aggregate-bar {
+  border-radius: 3px;
+  height: 6px;
+  opacity: 0.5;
+  align-self: center;
+  margin: 0 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ---- Task row ---- */
+.gantt-task-label {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 2px solid var(--border-default);
+  padding: 0 16px 0 36px;
+  display: flex;
+  align-items: center;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  height: 40px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt-task-label:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+}
+
+.gantt-cell {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.gantt-cell.gantt-col-today {
+  background: rgba(20, 184, 166, 0.04);
+}
+
+.gantt-cell.gantt-col-weekend {
+  background: var(--bg-tertiary);
+}
+
+.gantt-cell.gantt-col-today.gantt-col-weekend {
+  background: rgba(20, 184, 166, 0.04);
+}
+
+/* ---- Task bar ---- */
+.gantt-task-bar {
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  cursor: pointer;
+  z-index: 3;
+  height: 28px;
+  align-self: center;
+  margin: 0 3px;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), filter var(--transition-fast);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.gantt-task-bar:hover {
+  transform: scale(1.02);
+  box-shadow: var(--shadow-md);
+  filter: brightness(1.08);
+  z-index: 10;
+}
+
+.gantt-task-bar.gantt-bar-done {
+  opacity: 0.4;
+  filter: grayscale(0.3);
+}
+
+.gantt-bar-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* ---- Assignee label (to the right of bar) ---- */
+.gantt-assignee-label {
+  display: flex;
+  align-items: center;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding-left: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ---- Today vertical line ---- */
+.gantt-today-line {
+  z-index: 5;
+  pointer-events: none;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.gantt-today-line::before {
+  content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   width: 2px;
   background: var(--error);
-  z-index: 4;
-  pointer-events: none;
+  border-radius: 1px;
 }
 
-.tl-today-marker::before {
-  content: 'Today';
+.gantt-today-line::after {
+  content: '';
   position: absolute;
-  top: 2px;
-  left: -16px;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  color: var(--error);
-  white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--error);
+  border-radius: 50%;
+  transform: translateY(-4px);
 }
 
 /* Tooltip */

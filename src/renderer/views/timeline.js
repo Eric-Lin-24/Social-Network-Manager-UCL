@@ -1,7 +1,7 @@
 // ============================================
-// TIMELINE VIEW - Resource Capacity Planning
-// Swim lanes by team member, weekly columns,
-// color-coded task bars, capacity indicators
+// TIMELINE VIEW - Project Gantt Chart
+// Left sidebar: projects + tasks, right: date grid
+// with horizontal task bars, today line, zoom
 // ============================================
 
 // ===== Date Helpers =====
@@ -33,8 +33,7 @@ function _tlAddDays(date, n) {
 function _tlWeekStart(date) {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
-  d.setDate(diff);
+  d.setDate(d.getDate() - day);
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -56,68 +55,81 @@ function _tlFormatMonthYear(date) {
   return `${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
-function _tlFormatRangeLabel(start, end) {
+function _tlFormatWeekSpan(startDate, endDate) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const sameYear = start.getFullYear() === end.getFullYear();
-  const sameMonth = sameYear && start.getMonth() === end.getMonth();
-  if (sameMonth) {
-    return `${months[start.getMonth()]} ${start.getDate()} - ${end.getDate()}, ${start.getFullYear()}`;
+  if (startDate.getMonth() === endDate.getMonth()) {
+    return `${months[startDate.getMonth()]} ${startDate.getDate()}-${endDate.getDate()}`;
+  } else {
+    return `${months[startDate.getMonth()]} ${startDate.getDate()} - ${months[endDate.getMonth()]} ${endDate.getDate()}`;
   }
-  if (sameYear) {
-    return `${months[start.getMonth()]} ${start.getDate()} - ${months[end.getMonth()]} ${end.getDate()}, ${start.getFullYear()}`;
-  }
-  return `${months[start.getMonth()]} ${start.getDate()}, ${start.getFullYear()} - ${months[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
 }
 
-// ===== Viewport / Column Calculations =====
+const MONTH_NAMES_FULL = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+];
 
-function _tlGetColumns() {
+// ===== Gantt Column Generation =====
+
+function _ganttGetColumns() {
   const zoom = AppState.timelineZoom || 'week';
   const startDate = AppState.timelineStartDate
     ? _tlParseDate(AppState.timelineStartDate)
-    : _tlWeekStart(new Date());
+    : _tlAddDays(new Date(), -3);
 
   const columns = [];
+  const todayISO = _tlDateToISO(new Date());
 
   if (zoom === 'day') {
-    for (let i = 0; i < 14; i++) {
+    // Show 35 individual days
+    for (let i = 0; i < 35; i++) {
       const d = _tlAddDays(startDate, i);
       columns.push({
         start: new Date(d),
-        end: _tlAddDays(d, 0),
-        label: _tlFormatShortDate(d),
-        isToday: _tlDateToISO(d) === _tlDateToISO(new Date()),
-        isWeekend: d.getDay() === 0 || d.getDay() === 6
+        end: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59),
+        label: String(d.getDate()),
+        iso: _tlDateToISO(d),
+        isToday: _tlDateToISO(d) === todayISO,
+        isWeekend: d.getDay() === 0 || d.getDay() === 6,
+        month: d.getMonth(),
+        year: d.getFullYear()
       });
     }
   } else if (zoom === 'month') {
+    // Show 12 months
     const ms = _tlMonthStart(startDate);
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       const m = new Date(ms);
       m.setMonth(m.getMonth() + i);
       const mEnd = new Date(m);
       mEnd.setMonth(mEnd.getMonth() + 1);
       mEnd.setDate(mEnd.getDate() - 1);
+      mEnd.setHours(23, 59, 59, 999);
       columns.push({
         start: new Date(m),
         end: mEnd,
         label: _tlFormatMonthYear(m),
-        isToday: false,
-        isWeekend: false
+        iso: _tlDateToISO(m),
+        isToday: new Date().getMonth() === m.getMonth() && new Date().getFullYear() === m.getFullYear(),
+        month: m.getMonth(),
+        year: m.getFullYear()
       });
     }
   } else {
-    // Week zoom (default)
+    // Week zoom: show 16 weeks
     const ws = _tlWeekStart(startDate);
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 16; i++) {
       const w = _tlAddDays(ws, i * 7);
       const wEnd = _tlAddDays(w, 6);
+      wEnd.setHours(23, 59, 59, 999);
       columns.push({
         start: new Date(w),
         end: wEnd,
-        label: _tlFormatShortDate(w),
-        isToday: false,
-        isWeekend: false
+        label: _tlFormatWeekSpan(w, wEnd),
+        iso: _tlDateToISO(w),
+        isToday: todayISO >= _tlDateToISO(w) && todayISO <= _tlDateToISO(wEnd),
+        month: w.getMonth(),
+        year: w.getFullYear()
       });
     }
   }
@@ -125,47 +137,36 @@ function _tlGetColumns() {
   return columns;
 }
 
-function _tlGetViewportRange(columns) {
-  if (!columns.length) return { start: new Date(), end: new Date() };
-  return { start: columns[0].start, end: columns[columns.length - 1].end };
-}
-
-// ===== Capacity Calculation =====
-
-function _tlCalcCapacity(member, tasks, colStart, colEnd) {
-  const overlapping = tasks.filter(t => {
-    if (t.assignee_id !== member.id) return false;
-    const tStart = _tlParseDate(t.start_date);
-    const tEnd = _tlParseDate(t.end_date);
-    return tStart <= colEnd && tEnd >= colStart;
-  });
-  const totalHours = overlapping.reduce((sum, t) => sum + (t.hours_per_week || 0), 0);
-  const capacity = member.weekly_capacity_hours || 40;
-  return {
-    used: totalHours,
-    total: capacity,
-    percent: Math.round((totalHours / capacity) * 100)
-  };
-}
-
-// ===== Task Bar Column Span =====
-
-function _tlTaskColumnSpan(task, columns) {
+// Calculate which columns a task spans
+function _ganttTaskSpan(task, columns) {
   const tStart = _tlParseDate(task.start_date);
   const tEnd = _tlParseDate(task.end_date);
-
-  let startCol = -1;
-  let endCol = -1;
-
+  tEnd.setHours(23, 59, 59, 999);
+  let startCol = -1, endCol = -1;
   for (let i = 0; i < columns.length; i++) {
-    const col = columns[i];
-    if (tStart <= col.end && tEnd >= col.start) {
+    if (tStart <= columns[i].end && tEnd >= columns[i].start) {
       if (startCol === -1) startCol = i;
       endCol = i;
     }
   }
-
   return { startCol, endCol };
+}
+
+// Build month header groupings for day zoom
+function _ganttMonthSpans(columns) {
+  const spans = [];
+  let cur = { month: -1, year: -1, start: 0, count: 0 };
+  for (let i = 0; i < columns.length; i++) {
+    const col = columns[i];
+    if (col.month !== cur.month || col.year !== cur.year) {
+      if (cur.count > 0) spans.push({ ...cur });
+      cur = { month: col.month, year: col.year, start: i, count: 1 };
+    } else {
+      cur.count++;
+    }
+  }
+  if (cur.count > 0) spans.push(cur);
+  return spans;
 }
 
 // ===== Data Fetching =====
@@ -187,7 +188,6 @@ async function timelineFetchMembers() {
 async function timelineFetchTasks() {
   if (!AppState.userId) return;
   let url = `${AppState.authenticationUrl}/timeline-tasks?user_uuid=${AppState.userId}`;
-  if (AppState.timelineFilterProject) url += `&project_id=${encodeURIComponent(AppState.timelineFilterProject)}`;
   if (AppState.timelineFilterPerson) url += `&assignee_id=${encodeURIComponent(AppState.timelineFilterPerson)}`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('Failed to fetch tasks');
@@ -215,16 +215,16 @@ function _tlNavigate(direction) {
   const zoom = AppState.timelineZoom || 'week';
   const current = AppState.timelineStartDate
     ? _tlParseDate(AppState.timelineStartDate)
-    : _tlWeekStart(new Date());
+    : _tlAddDays(new Date(), -3);
 
   let next;
   if (zoom === 'day') {
-    next = _tlAddDays(current, direction * 7);
+    next = _tlAddDays(current, direction * 14);
   } else if (zoom === 'month') {
     next = new Date(current);
-    next.setMonth(next.getMonth() + direction * 3);
+    next.setMonth(next.getMonth() + direction * 6);
   } else {
-    next = _tlAddDays(current, direction * 4 * 7);
+    next = _tlAddDays(current, direction * 8 * 7);
   }
 
   AppState.timelineStartDate = _tlDateToISO(next);
@@ -238,6 +238,7 @@ function _tlGoToToday() {
 
 function timelineSetZoom(zoom) {
   AppState.timelineZoom = zoom;
+  AppState.timelineStartDate = null;
   renderTimeline();
 }
 
@@ -247,8 +248,8 @@ function timelineSetViewMode(mode) {
 }
 
 function timelineSetFilterProject(id) {
-  AppState.timelineFilterProject = id;
-  timelineFetchTasks().then(() => renderTimeline());
+  AppState.timelineFilterProject = id || '';
+  renderTimeline();
 }
 
 function timelineSetFilterPerson(id) {
@@ -256,15 +257,32 @@ function timelineSetFilterPerson(id) {
   timelineFetchTasks().then(() => renderTimeline());
 }
 
-// ===== Toolbar Builder =====
+function _ganttToggleGroup(projectId) {
+  if (!AppState._ganttCollapsed) AppState._ganttCollapsed = {};
+  AppState._ganttCollapsed[projectId] = !AppState._ganttCollapsed[projectId];
+  renderTimeline();
+}
+
+// ===== Toolbar =====
 
 function _tlBuildToolbar() {
   const zoom = AppState.timelineZoom || 'week';
   const viewMode = AppState.timelineViewMode || 'timeline';
   const projects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
-  const columns = _tlGetColumns();
-  const range = _tlGetViewportRange(columns);
+  const columns = _ganttGetColumns();
+  const rangeStart = columns[0]?.start || new Date();
+  const rangeEnd = columns[columns.length - 1]?.end || new Date();
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  let rangeLabel;
+  if (rangeStart.getFullYear() === rangeEnd.getFullYear() && rangeStart.getMonth() === rangeEnd.getMonth()) {
+    rangeLabel = `${months[rangeStart.getMonth()]} ${rangeStart.getDate()} \u2013 ${rangeEnd.getDate()}, ${rangeStart.getFullYear()}`;
+  } else if (rangeStart.getFullYear() === rangeEnd.getFullYear()) {
+    rangeLabel = `${months[rangeStart.getMonth()]} ${rangeStart.getDate()} \u2013 ${months[rangeEnd.getMonth()]} ${rangeEnd.getDate()}, ${rangeStart.getFullYear()}`;
+  } else {
+    rangeLabel = `${months[rangeStart.getMonth()]} ${rangeStart.getDate()}, ${rangeStart.getFullYear()} \u2013 ${months[rangeEnd.getMonth()]} ${rangeEnd.getDate()}, ${rangeEnd.getFullYear()}`;
+  }
 
   const zoomBtn = (val, label) =>
     `<button class="tl-tab-btn ${zoom === val ? 'active' : ''}" onclick="timelineSetZoom('${val}')">${label}</button>`;
@@ -284,7 +302,7 @@ function _tlBuildToolbar() {
     <div class="tl-toolbar card">
       <div class="tl-toolbar-left">
         <div class="tl-tab-group">
-          ${viewBtn('timeline', 'Timeline')}
+          ${viewBtn('timeline', 'Gantt')}
           ${viewBtn('list', 'List')}
         </div>
         <div class="tl-tab-group">
@@ -297,7 +315,7 @@ function _tlBuildToolbar() {
         <button class="btn btn-ghost btn-sm" onclick="_tlNavigate(-1)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <span class="tl-range-label">${_tlFormatRangeLabel(range.start, range.end)}</span>
+        <span class="tl-range-label">${rangeLabel}</span>
         <button class="btn btn-ghost btn-sm" onclick="_tlNavigate(1)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -305,185 +323,223 @@ function _tlBuildToolbar() {
       </div>
       <div class="tl-toolbar-right">
         <select class="tl-filter-select" onchange="timelineSetFilterProject(this.value)">
-          <option value="">All Projects</option>
+          <option value="">All Tasks</option>
           ${projectOpts}
         </select>
         <select class="tl-filter-select" onchange="timelineSetFilterPerson(this.value)">
           <option value="">All People</option>
           ${memberOpts}
         </select>
-        <button class="btn btn-primary btn-sm" onclick="openCreateTaskModal()">+ Task</button>
-        <button class="btn btn-secondary btn-sm" onclick="openCreateProjectModal()">+ Project</button>
+        <button class="btn btn-primary btn-sm" onclick="openCreateTaskModal()">+ Sub-task</button>
+        <button class="btn btn-secondary btn-sm" onclick="openCreateProjectModal()">+ Task</button>
         <button class="btn btn-secondary btn-sm" onclick="openCreateMemberModal()">+ Member</button>
       </div>
     </div>
   `;
 }
 
-// ===== Today Marker =====
+// ===== Gantt Chart Builder =====
 
-function _tlTodayMarkerColumn(columns) {
+function _ganttBuildChart() {
+  const projects = AppState.timelineProjects || [];
+  const tasks = AppState.timelineTasks || [];
+  const members = AppState.timelineTeamMembers || [];
+  const columns = _ganttGetColumns();
+  const zoom = AppState.timelineZoom || 'week';
+  const collapsed = AppState._ganttCollapsed || {};
+  const filterProject = AppState.timelineFilterProject;
+  const numCols = columns.length;
   const todayISO = _tlDateToISO(new Date());
-  const today = _tlParseDate(todayISO);
 
-  for (let i = 0; i < columns.length; i++) {
-    const col = columns[i];
-    if (today >= col.start && today <= col.end) {
-      // Calculate position within this column
-      const totalDays = Math.max(1, (col.end - col.start) / (1000 * 60 * 60 * 24));
-      const dayOffset = (today - col.start) / (1000 * 60 * 60 * 24);
-      const pct = Math.round((dayOffset / totalDays) * 100);
-      return { colIndex: i, pct };
+  // Build row data: project headers + task rows
+  let visibleProjects = projects;
+  if (filterProject) {
+    visibleProjects = projects.filter(p => p.id === filterProject);
+  }
+
+  const rows = []; // { type: 'project'|'task', data, project }
+  for (const project of visibleProjects) {
+    const projectTasks = tasks.filter(t => t.project_id === project.id);
+    if (!filterProject && projectTasks.length === 0) continue;
+    rows.push({ type: 'project', project, taskCount: projectTasks.length });
+    if (!collapsed[project.id]) {
+      for (const task of projectTasks) {
+        rows.push({ type: 'task', task, project });
+      }
     }
   }
-  return null;
-}
 
-// ===== Timeline Grid Builder =====
+  // Catch unassigned tasks (no project)
+  const orphanTasks = tasks.filter(t => !projects.find(p => p.id === t.project_id));
+  if (orphanTasks.length > 0 && !filterProject) {
+    rows.push({ type: 'project', project: { id: '__orphan', name: 'Unassigned', color: '#6b7280' }, taskCount: orphanTasks.length });
+    if (!collapsed['__orphan']) {
+      for (const task of orphanTasks) {
+        rows.push({ type: 'task', task, project: { id: '__orphan', name: 'Unassigned', color: '#6b7280' } });
+      }
+    }
+  }
 
-function _tlBuildTimelineGrid() {
-  const columns = _tlGetColumns();
-  const members = AppState.timelineTeamMembers || [];
-  const tasks = AppState.timelineTasks || [];
-  const projects = AppState.timelineProjects || [];
-  const numCols = columns.length;
-
-  if (members.length === 0) {
+  if (rows.length === 0) {
     return `
       <div class="card" style="padding: 48px; text-align: center;">
         <div style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:inline-block;">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
         </div>
-        <h3 style="color: var(--text-primary); margin-bottom: 8px;">No team members yet</h3>
-        <p style="color: var(--text-muted); margin-bottom: 16px;">Add team members to start planning your resource timeline.</p>
-        <button class="btn btn-primary" onclick="openCreateMemberModal()">+ Add Team Member</button>
+        <h3 style="color: var(--text-primary); margin-bottom: 8px;">No tasks yet</h3>
+        <p style="color: var(--text-muted); margin-bottom: 16px;">Create a task and add sub-tasks to see them on the Gantt chart.</p>
+        <div style="display: flex; gap: 8px; justify-content: center;">
+          <button class="btn btn-primary" onclick="openCreateProjectModal()">+ Create Task</button>
+          <button class="btn btn-secondary" onclick="openCreateMemberModal()">+ Add Member</button>
+        </div>
       </div>
     `;
   }
 
-  // Build header row
-  let headerCells = `<div class="tl-header-cell tl-member-header">Team Member</div>`;
-  for (const col of columns) {
-    const cls = col.isToday ? ' tl-col-today' : '';
-    headerCells += `<div class="tl-header-cell${cls}">${_tlEscape(col.label)}</div>`;
+  // Column width based on zoom
+  const colWidth = zoom === 'day' ? 36 : zoom === 'month' ? 110 : 80;
+  const sidebarWidth = 280;
+  const totalRows = rows.length;
+
+  // ---- Build month header row (for day zoom) ----
+  let monthHeaderHTML = '';
+  if (zoom === 'day') {
+    const spans = _ganttMonthSpans(columns);
+    monthHeaderHTML = `<div class="gantt-month-label-cell" style="grid-column: 1; grid-row: 1;"></div>`;
+    for (const span of spans) {
+      const gc1 = span.start + 2;
+      const gc2 = span.start + span.count + 2;
+      monthHeaderHTML += `<div class="gantt-month-label" style="grid-column: ${gc1} / ${gc2}; grid-row: 1;">${MONTH_NAMES_FULL[span.month]} ${span.year}</div>`;
+    }
   }
 
-  // Build swim lane rows
-  let swimLanes = '';
-  for (const member of members) {
-    const memberTasks = tasks.filter(t => t.assignee_id === member.id);
-    swimLanes += _tlBuildSwimLane(member, memberTasks, columns, projects);
-  }
-
-  // Today marker
-  const todayInfo = _tlTodayMarkerColumn(columns);
-  let todayMarker = '';
-  if (todayInfo) {
-    // grid-column is 1-indexed, +2 for the member column offset
-    const gridCol = todayInfo.colIndex + 2;
-    todayMarker = `<div class="tl-today-marker" style="grid-column: ${gridCol}; left: ${todayInfo.pct}%;"></div>`;
-  }
-
-  return `
-    <div class="card tl-container">
-      <div class="tl-grid" style="grid-template-columns: 200px repeat(${numCols}, minmax(${AppState.timelineZoom === 'day' ? '80px' : '120px'}, 1fr));">
-        ${headerCells}
-        ${swimLanes}
-        ${todayMarker}
-      </div>
-    </div>
-  `;
-}
-
-function _tlBuildSwimLane(member, memberTasks, columns, projects) {
-  const numCols = columns.length;
-
-  // Member info cell
-  let html = `
-    <div class="tl-member-cell">
-      <div class="tl-member-avatar">${_tlEscape(member.avatar_initials)}</div>
-      <div class="tl-member-info">
-        <div class="tl-member-name">${_tlEscape(member.name)}</div>
-        <div class="tl-member-role">${_tlEscape(member.role)}${member.weekly_capacity_hours ? ', ' + member.weekly_capacity_hours + 'h/wk' : ''}</div>
-      </div>
-    </div>
-  `;
-
-  // Time cells with capacity badges
+  // ---- Build date header row ----
+  const dateRow = zoom === 'day' ? 2 : 1;
+  let dateHeaderHTML = `<div class="gantt-sidebar-header" style="grid-row: ${dateRow}; grid-column: 1;">Tasks</div>`;
   for (let i = 0; i < numCols; i++) {
     const col = columns[i];
-    const cap = _tlCalcCapacity(member, AppState.timelineTasks || [], col.start, col.end);
-    let capClass = 'tl-cap-ok';
-    if (cap.percent >= 100) capClass = 'tl-cap-over';
-    else if (cap.percent >= 75) capClass = 'tl-cap-warning';
-
-    const capBadge = cap.used > 0
-      ? `<div class="tl-capacity-badge ${capClass}">${cap.percent}%</div>`
-      : '';
-
-    html += `<div class="tl-cell${col.isWeekend ? ' tl-weekend' : ''}${col.isToday ? ' tl-col-today' : ''}">${capBadge}</div>`;
+    const todayClass = col.isToday ? ' gantt-col-today' : '';
+    const weekendClass = col.isWeekend ? ' gantt-col-weekend' : '';
+    dateHeaderHTML += `<div class="gantt-date-header${todayClass}${weekendClass}" style="grid-row: ${dateRow}; grid-column: ${i + 2};">${_tlEscape(col.label)}</div>`;
   }
 
-  // Task bars (positioned as an overlay row)
-  // Group tasks by vertical stack position
-  const tasksByRow = [];
-  for (const task of memberTasks) {
-    const span = _tlTaskColumnSpan(task, columns);
-    if (span.startCol === -1) continue; // task not in viewport
+  // ---- Build rows ----
+  const dataRowStart = dateRow + 1;
+  let rowsHTML = '';
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    const gridRow = dataRowStart + r;
 
-    const project = projects.find(p => p.id === task.project_id);
-    let placed = false;
+    if (row.type === 'project') {
+      const isCollapsed = collapsed[row.project.id];
+      const arrow = isCollapsed ? '&#9654;' : '&#9660;';
 
-    for (let row = 0; row < tasksByRow.length; row++) {
-      const rowTasks = tasksByRow[row];
-      const overlaps = rowTasks.some(rt => {
-        const rtSpan = _tlTaskColumnSpan(rt, columns);
-        return span.startCol <= rtSpan.endCol && span.endCol >= rtSpan.startCol;
-      });
-      if (!overlaps) {
-        rowTasks.push(task);
-        placed = true;
-        break;
+      // Sidebar label
+      rowsHTML += `<div class="gantt-project-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="_ganttToggleGroup('${row.project.id}')">
+        <span class="gantt-toggle-arrow">${arrow}</span>
+        <span class="gantt-project-dot" style="background: ${row.project.color};"></span>
+        <span class="gantt-project-name">${_tlEscape(row.project.name)}</span>
+        <span class="gantt-project-count">${row.taskCount}</span>
+        <button class="gantt-add-subtask-btn" onclick="event.stopPropagation(); openCreateTaskModal('${row.project.id}')" title="Add sub-task">+</button>
+      </div>`;
+
+      // Background cells for project row
+      for (let i = 0; i < numCols; i++) {
+        const col = columns[i];
+        const todayClass = col.isToday ? ' gantt-col-today' : '';
+        rowsHTML += `<div class="gantt-project-cell${todayClass}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
+      }
+
+      // Project aggregate bar (span from earliest task to latest task)
+      const projectTasks = tasks.filter(t => t.project_id === row.project.id);
+      if (projectTasks.length > 0) {
+        let minStart = projectTasks[0].start_date;
+        let maxEnd = projectTasks[0].end_date;
+        for (const t of projectTasks) {
+          if (t.start_date < minStart) minStart = t.start_date;
+          if (t.end_date > maxEnd) maxEnd = t.end_date;
+        }
+        const span = _ganttTaskSpan({ start_date: minStart, end_date: maxEnd }, columns);
+        if (span.startCol >= 0) {
+          const gc1 = span.startCol + 2;
+          const gc2 = span.endCol + 3;
+          rowsHTML += `<div class="gantt-aggregate-bar" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; background: ${row.project.color};"></div>`;
+        }
+      }
+
+    } else {
+      // Task row
+      const task = row.task;
+      const member = members.find(m => m.id === task.assignee_id);
+
+      // Sidebar label
+      rowsHTML += `<div class="gantt-task-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="openEditTaskModal('${task.id}')">
+        ${_tlEscape(task.title)}
+      </div>`;
+
+      // Background cells
+      for (let i = 0; i < numCols; i++) {
+        const col = columns[i];
+        const todayClass = col.isToday ? ' gantt-col-today' : '';
+        const weekendClass = col.isWeekend ? ' gantt-col-weekend' : '';
+        rowsHTML += `<div class="gantt-cell${todayClass}${weekendClass}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
+      }
+
+      // Task bar
+      const span = _ganttTaskSpan(task, columns);
+      if (span.startCol >= 0) {
+        const gc1 = span.startCol + 2;
+        const gc2 = span.endCol + 3;
+        const color = row.project.color || '#14b8a6';
+        const doneClass = task.status === 'done' ? ' gantt-bar-done' : '';
+        const assigneeName = member ? _tlEscape(member.name) : '';
+
+        rowsHTML += `<div class="gantt-task-bar${doneClass}" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; background: ${color};"
+          onclick="openEditTaskModal('${task.id}')"
+          onmouseover="showTaskTooltip(event, '${task.id}')"
+          onmouseout="hideTaskTooltip()">
+          <span class="gantt-bar-label">${_tlEscape(task.title)}</span>
+        </div>`;
+
+        // Assignee label to the right of bar
+        if (assigneeName && span.endCol + 1 < numCols) {
+          rowsHTML += `<div class="gantt-assignee-label" style="grid-row: ${gridRow}; grid-column: ${gc2};">${assigneeName}</div>`;
+        }
       }
     }
-    if (!placed) {
-      tasksByRow.push([task]);
+  }
+
+  // ---- Today line ----
+  let todayLine = '';
+  for (let i = 0; i < numCols; i++) {
+    if (columns[i].isToday) {
+      // For day zoom, center the line on the column
+      // For week/month, position proportionally
+      const gc = i + 2;
+      const totalGridRows = dataRowStart + rows.length;
+      todayLine = `<div class="gantt-today-line" style="grid-column: ${gc}; grid-row: ${dateRow} / ${totalGridRows};"></div>`;
+      break;
     }
   }
 
-  // Render task bars
-  for (let row = 0; row < tasksByRow.length; row++) {
-    for (const task of tasksByRow[row]) {
-      const span = _tlTaskColumnSpan(task, columns);
-      if (span.startCol === -1) continue;
+  // Grid template
+  const gridCols = `${sidebarWidth}px repeat(${numCols}, ${colWidth}px)`;
+  const headerRows = zoom === 'day' ? 2 : 1;
 
-      const project = projects.find(p => p.id === task.project_id);
-      const color = project ? project.color : '#14b8a6';
-      // grid-column is 1-indexed, +2 for the member column offset
-      const gridColStart = span.startCol + 2;
-      const gridColEnd = span.endCol + 3; // exclusive end
-      const topOffset = 24 + row * 32;
-      const doneClass = task.status === 'done' ? ' status-done' : '';
-
-      html += `
-        <div class="tl-task-bar${doneClass}"
-             style="grid-column: ${gridColStart} / ${gridColEnd}; background: ${color}; margin-top: ${topOffset}px;"
-             onclick="openEditTaskModal('${task.id}')"
-             onmouseover="showTaskTooltip(event, '${task.id}')"
-             onmouseout="hideTaskTooltip()">
-          <span class="tl-task-label">${_tlEscape(task.title)}</span>
-          ${project ? `<span class="tl-task-tag">${_tlEscape(project.name)}</span>` : ''}
+  return `
+    <div class="card gantt-container">
+      <div class="gantt-scroll">
+        <div class="gantt-grid" style="grid-template-columns: ${gridCols};">
+          ${monthHeaderHTML}
+          ${dateHeaderHTML}
+          ${rowsHTML}
+          ${todayLine}
         </div>
-      `;
-    }
-  }
-
-  return html;
+      </div>
+    </div>
+  `;
 }
 
 // ===== List View Builder =====
@@ -492,18 +548,21 @@ function _tlBuildListView() {
   const tasks = AppState.timelineTasks || [];
   const projects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
+  const filterProject = AppState.timelineFilterProject;
 
-  if (tasks.length === 0) {
+  const filteredTasks = filterProject ? tasks.filter(t => t.project_id === filterProject) : tasks;
+
+  if (filteredTasks.length === 0) {
     return `
       <div class="card" style="padding: 48px; text-align: center;">
-        <h3 style="color: var(--text-primary); margin-bottom: 8px;">No tasks yet</h3>
-        <p style="color: var(--text-muted); margin-bottom: 16px;">Create a task to see it in the list.</p>
-        <button class="btn btn-primary" onclick="openCreateTaskModal()">+ Create Task</button>
+        <h3 style="color: var(--text-primary); margin-bottom: 8px;">No sub-tasks yet</h3>
+        <p style="color: var(--text-muted); margin-bottom: 16px;">Create a sub-task to see it in the list.</p>
+        <button class="btn btn-primary" onclick="openCreateTaskModal()">+ Create Sub-task</button>
       </div>
     `;
   }
 
-  const rows = tasks.map(task => {
+  const rows = filteredTasks.map(task => {
     const project = projects.find(p => p.id === task.project_id);
     const member = members.find(m => m.id === task.assignee_id);
     const statusCls = task.status === 'done' ? 'tl-status-done'
@@ -533,8 +592,8 @@ function _tlBuildListView() {
       <table class="tl-list-table">
         <thead>
           <tr>
+            <th>Sub-task</th>
             <th>Task</th>
-            <th>Project</th>
             <th>Assignee</th>
             <th>Start</th>
             <th>End</th>
@@ -568,7 +627,7 @@ function renderTimeline() {
 
   const viewMode = AppState.timelineViewMode || 'timeline';
   const toolbar = _tlBuildToolbar();
-  const body = viewMode === 'list' ? _tlBuildListView() : _tlBuildTimelineGrid();
+  const body = viewMode === 'list' ? _tlBuildListView() : _ganttBuildChart();
 
   content.innerHTML = `
     <div class="animate-slide-up" style="display: flex; flex-direction: column; gap: 16px;">
@@ -680,7 +739,7 @@ function openCreateProjectModal() {
 
   const body = `
     <div class="form-group">
-      <label class="form-label">Project Name</label>
+      <label class="form-label">Task Name</label>
       <input type="text" id="tl-proj-name" class="form-input" placeholder="e.g. Website Redesign">
     </div>
     <div class="form-group">
@@ -691,10 +750,10 @@ function openCreateProjectModal() {
 
   const footer = `
     <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button class="btn btn-primary" onclick="submitCreateProject()">Create Project</button>
+    <button class="btn btn-primary" onclick="submitCreateProject()">Create Task</button>
   `;
 
-  _tlShowModal(_tlModalShell('New Project', body, footer));
+  _tlShowModal(_tlModalShell('New Task', body, footer));
 }
 
 async function submitCreateProject() {
@@ -715,7 +774,7 @@ async function submitCreateProject() {
     });
     if (!resp.ok) throw new Error('Failed to create project');
     closeTimelineModal();
-    showNotification('Project created', 'success');
+    showNotification('Task created', 'success');
     await timelineRefreshData();
     renderTimeline();
   } catch (e) {
@@ -777,17 +836,17 @@ async function submitCreateMember() {
 
 // ===== Create Task Modal =====
 
-function openCreateTaskModal(prefillAssignee) {
+function openCreateTaskModal(prefillProjectId, prefillAssignee) {
   const projects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
 
   if (projects.length === 0 || members.length === 0) {
-    showNotification('Create at least one project and one team member first.', 'warning');
+    showNotification('Create at least one task and one team member first.', 'warning');
     return;
   }
 
   const projectOpts = projects.map(p =>
-    `<option value="${p.id}">${_tlEscape(p.name)}</option>`
+    `<option value="${p.id}" ${p.id === prefillProjectId ? 'selected' : ''}>${_tlEscape(p.name)}</option>`
   ).join('');
 
   const memberOpts = members.map(m =>
@@ -799,11 +858,11 @@ function openCreateTaskModal(prefillAssignee) {
 
   const body = `
     <div class="form-group">
-      <label class="form-label">Task Title</label>
+      <label class="form-label">Sub-task Title</label>
       <input type="text" id="tl-task-title" class="form-input" placeholder="e.g. Design Homepage">
     </div>
     <div class="form-group">
-      <label class="form-label">Project</label>
+      <label class="form-label">Parent Task</label>
       <select id="tl-task-project" class="form-input">${projectOpts}</select>
     </div>
     <div class="form-group">
@@ -842,10 +901,10 @@ function openCreateTaskModal(prefillAssignee) {
 
   const footer = `
     <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button class="btn btn-primary" onclick="submitCreateTask()">Create Task</button>
+    <button class="btn btn-primary" onclick="submitCreateTask()">Create Sub-task</button>
   `;
 
-  _tlShowModal(_tlModalShell('New Task', body, footer));
+  _tlShowModal(_tlModalShell('New Sub-task', body, footer));
 }
 
 async function submitCreateTask() {
@@ -875,7 +934,7 @@ async function submitCreateTask() {
     });
     if (!resp.ok) throw new Error('Failed to create task');
     closeTimelineModal();
-    showNotification('Task created', 'success');
+    showNotification('Sub-task created', 'success');
     await timelineRefreshData();
     renderTimeline();
   } catch (e) {
@@ -906,11 +965,11 @@ function openEditTaskModal(taskId) {
 
   const body = `
     <div class="form-group">
-      <label class="form-label">Task Title</label>
+      <label class="form-label">Sub-task Title</label>
       <input type="text" id="tl-edit-title" class="form-input" value="${_tlEscape(task.title)}">
     </div>
     <div class="form-group">
-      <label class="form-label">Project</label>
+      <label class="form-label">Parent Task</label>
       <select id="tl-edit-project" class="form-input">${projectOpts}</select>
     </div>
     <div class="form-group">
@@ -949,7 +1008,7 @@ function openEditTaskModal(taskId) {
     <button class="btn btn-primary" onclick="submitEditTask('${task.id}')">Save Changes</button>
   `;
 
-  _tlShowModal(_tlModalShell('Edit Task', body, footer));
+  _tlShowModal(_tlModalShell('Edit Sub-task', body, footer));
 }
 
 async function submitEditTask(taskId) {
@@ -979,7 +1038,7 @@ async function submitEditTask(taskId) {
     });
     if (!resp.ok) throw new Error('Failed to update task');
     closeTimelineModal();
-    showNotification('Task updated', 'success');
+    showNotification('Sub-task updated', 'success');
     await timelineRefreshData();
     renderTimeline();
   } catch (e) {
@@ -988,7 +1047,7 @@ async function submitEditTask(taskId) {
 }
 
 async function deleteTimelineTask(taskId) {
-  if (!confirm('Delete this task?')) return;
+  if (!confirm('Delete this sub-task?')) return;
 
   try {
     const resp = await fetch(`${AppState.authenticationUrl}/timeline-tasks/${taskId}?user_uuid=${AppState.userId}`, {
@@ -996,7 +1055,7 @@ async function deleteTimelineTask(taskId) {
     });
     if (!resp.ok) throw new Error('Failed to delete task');
     closeTimelineModal();
-    showNotification('Task deleted', 'success');
+    showNotification('Sub-task deleted', 'success');
     await timelineRefreshData();
     renderTimeline();
   } catch (e) {
@@ -1015,6 +1074,7 @@ if (typeof window !== 'undefined') {
   window.timelineSetFilterPerson = timelineSetFilterPerson;
   window._tlNavigate = _tlNavigate;
   window._tlGoToToday = _tlGoToToday;
+  window._ganttToggleGroup = _ganttToggleGroup;
   window.openCreateTaskModal = openCreateTaskModal;
   window.openEditTaskModal = openEditTaskModal;
   window.submitCreateTask = submitCreateTask;
