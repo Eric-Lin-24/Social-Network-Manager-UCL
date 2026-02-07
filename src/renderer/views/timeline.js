@@ -1,4 +1,3 @@
-successfully downloaded text file (SHA: aa54458f6ae509f3e1bc908b36a8597f4ac5db37)// ============================================
 // TIMELINE VIEW - Interactive Gantt Chart
 // Drag-to-create task blocks, resize handles,
 // auto-snap to day boundaries, project coloring,
