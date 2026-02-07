@@ -358,43 +358,43 @@ function _tlBuildToolbar() {
   const showGanttNav = viewMode === 'timeline';
 
   return `
-    <div team="tl-toolbar-v2">
-      <div team="tl-toolbar-row tl-toolbar-row--top">
-        <div team="tl-toolbar-section">
-          <div team="tl-pill-group" data-count="2">
-            <div team="tl-pill-slider" style="--pill-index: ${viewModeIndex}; --pill-count: 2;"></div>
-            <button team="tl-pill-btn ${viewMode === 'timeline' ? 'active' : ''}" onclick="timelineSetViewMode('timeline')">
+    <div class="tl-toolbar-v2">
+      <div class="tl-toolbar-row tl-toolbar-row--top">
+        <div class="tl-toolbar-section">
+          <div class="tl-pill-group" data-count="2">
+            <div class="tl-pill-slider" style="--pill-index: ${viewModeIndex}; --pill-count: 2;"></div>
+            <button class="tl-pill-btn ${viewMode === 'timeline' ? 'active' : ''}" onclick="timelineSetViewMode('timeline')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="11" width="7" height="4" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
               Gantt
             </button>
-            <button team="tl-pill-btn ${viewMode === 'list' ? 'active' : ''}" onclick="timelineSetViewMode('list')">
+            <button class="tl-pill-btn ${viewMode === 'list' ? 'active' : ''}" onclick="timelineSetViewMode('list')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
               List
             </button>
           </div>
 
           ${showGanttNav ? `
-          <div team="tl-separator"></div>
+          <div class="tl-separator"></div>
 
-          <div team="tl-pill-group" data-count="3">
-            <div team="tl-pill-slider" style="--pill-index: ${zoomIndex}; --pill-count: 3;"></div>
-            <button team="tl-pill-btn ${zoom === 'day' ? 'active' : ''}" onclick="timelineSetZoom('day')">Day</button>
-            <button team="tl-pill-btn ${zoom === 'week' ? 'active' : ''}" onclick="timelineSetZoom('week')">Week</button>
-            <button team="tl-pill-btn ${zoom === 'month' ? 'active' : ''}" onclick="timelineSetZoom('month')">Month</button>
+          <div class="tl-pill-group" data-count="3">
+            <div class="tl-pill-slider" style="--pill-index: ${zoomIndex}; --pill-count: 3;"></div>
+            <button class="tl-pill-btn ${zoom === 'day' ? 'active' : ''}" onclick="timelineSetZoom('day')">Day</button>
+            <button class="tl-pill-btn ${zoom === 'week' ? 'active' : ''}" onclick="timelineSetZoom('week')">Week</button>
+            <button class="tl-pill-btn ${zoom === 'month' ? 'active' : ''}" onclick="timelineSetZoom('month')">Month</button>
           </div>
           ` : ''}
         </div>
 
         ${showGanttNav ? `
-        <div team="tl-toolbar-section tl-toolbar-section--nav">
-          <button team="tl-nav-btn" onclick="_tlNavigate(-1)" title="Previous">
+        <div class="tl-toolbar-section tl-toolbar-section--nav">
+          <button class="tl-nav-btn" onclick="_tlNavigate(-1)" title="Previous">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <span team="tl-range-label-v2">${rangeLabel}</span>
-          <button team="tl-nav-btn" onclick="_tlNavigate(1)" title="Next">
+          <span class="tl-range-label-v2">${rangeLabel}</span>
+          <button class="tl-nav-btn" onclick="_tlNavigate(1)" title="Next">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
-          <button team="tl-today-btn" onclick="_tlGoToToday()">
+          <button class="tl-today-btn" onclick="_tlGoToToday()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
             Today
           </button>
@@ -402,35 +402,35 @@ function _tlBuildToolbar() {
         ` : ''}
       </div>
 
-      <div team="tl-toolbar-row tl-toolbar-row--bottom">
-        <div team="tl-toolbar-section">
-          <div team="tl-filter-wrap">
-            <svg team="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12h6M9 16h4"/></svg>
-            <select team="tl-filter-v2" onchange="timelineSetFilterProject(this.value)">
+      <div class="tl-toolbar-row tl-toolbar-row--bottom">
+        <div class="tl-toolbar-section">
+          <div class="tl-filter-wrap">
+            <svg class="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12h6M9 16h4"/></svg>
+            <select class="tl-filter-v2" onchange="timelineSetFilterProject(this.value)">
               <option value="">All Projects</option>
               ${projectOpts}
             </select>
           </div>
-          <div team="tl-filter-wrap">
-            <svg team="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg>
-            <select team="tl-filter-v2" onchange="timelineSetFilterPerson(this.value)">
+          <div class="tl-filter-wrap">
+            <svg class="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg>
+            <select class="tl-filter-v2" onchange="timelineSetFilterPerson(this.value)">
               <option value="">All Workers</option>
               ${memberOpts}
             </select>
           </div>
         </div>
 
-        <div team="tl-toolbar-section tl-toolbar-section--actions">
-          <div team="tl-drag-block" id="tl-task-drag-block" title="Drag onto the timeline to create a task">
+        <div class="tl-toolbar-section tl-toolbar-section--actions">
+          <div class="tl-drag-block" id="tl-task-drag-block" title="Drag onto the timeline to create a task">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="18" height="10" rx="3"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
             <span>Task</span>
-            <svg team="tl-drag-grip" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="2"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/></svg>
+            <svg class="tl-drag-grip" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="2"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/></svg>
           </div>
-          <button team="tl-action-btn tl-action-btn--secondary" onclick="openCreateProjectModal()">
+          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateProjectModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
             Project
           </button>
-          <button team="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
+          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
             Worker
           </button>
@@ -486,21 +486,21 @@ function _ganttBuildChart() {
 
   if (rows.length === 0) {
     return `
-      <div team="card gantt-empty-state">
-        <div team="gantt-empty-icon">
+      <div class="card gantt-empty-state">
+        <div class="gantt-empty-icon">
           <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
             <line x1="10" y1="14" x2="14" y2="14" opacity="0.5"/><line x1="10" y1="17" x2="12" y2="17" opacity="0.3"/>
           </svg>
         </div>
-        <h3 team="gantt-empty-title">No tasks yet</h3>
-        <p team="gantt-empty-desc">Create a project and add tasks to see them on the Gantt chart.</p>
-        <div team="gantt-empty-actions">
-          <button team="tl-action-btn tl-action-btn--primary" onclick="openCreateProjectModal()">
+        <h3 class="gantt-empty-title">No tasks yet</h3>
+        <p class="gantt-empty-desc">Create a project and add tasks to see them on the Gantt chart.</p>
+        <div class="gantt-empty-actions">
+          <button class="tl-action-btn tl-action-btn--primary" onclick="openCreateProjectModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Create Project
           </button>
-          <button team="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
+          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
             Add Worker
           </button>
@@ -516,22 +516,22 @@ function _ganttBuildChart() {
   let monthHeaderHTML = '';
   if (zoom === 'day') {
     const spans = _ganttMonthSpans(columns);
-    monthHeaderHTML = `<div team="gantt-month-label-cell" style="grid-column: 1; grid-row: 1;"></div>`;
+    monthHeaderHTML = `<div class="gantt-month-label-cell" style="grid-column: 1; grid-row: 1;"></div>`;
     for (const span of spans) {
       const gc1 = span.start + 2;
       const gc2 = span.start + span.count + 2;
-      monthHeaderHTML += `<div team="gantt-month-label" style="grid-column: ${gc1} / ${gc2}; grid-row: 1;">${MONTH_NAMES_FULL[span.month]} ${span.year}</div>`;
+      monthHeaderHTML += `<div class="gantt-month-label" style="grid-column: ${gc1} / ${gc2}; grid-row: 1;">${MONTH_NAMES_FULL[span.month]} ${span.year}</div>`;
     }
   }
 
   // Date header row
   const dateRow = zoom === 'day' ? 2 : 1;
-  let dateHeaderHTML = `<div team="gantt-sidebar-header" style="grid-row: ${dateRow}; grid-column: 1;">Tasks</div>`;
+  let dateHeaderHTML = `<div class="gantt-sidebar-header" style="grid-row: ${dateRow}; grid-column: 1;">Tasks</div>`;
   for (let i = 0; i < numCols; i++) {
     const col = columns[i];
     const todayClass = col.isToday ? ' gantt-col-today' : '';
     const weekendClass = col.isWeekend ? ' gantt-col-weekend' : '';
-    dateHeaderHTML += `<div team="gantt-date-header${todayClass}${weekendClass}" style="grid-row: ${dateRow}; grid-column: ${i + 2};">${_tlEscape(col.label)}</div>`;
+    dateHeaderHTML += `<div class="gantt-date-header${todayClass}${weekendClass}" style="grid-row: ${dateRow}; grid-column: ${i + 2};">${_tlEscape(col.label)}</div>`;
   }
 
   // Data rows
@@ -545,18 +545,18 @@ function _ganttBuildChart() {
       const isCollapsed = collapsed[row.project.id];
       const arrow = isCollapsed ? '&#9654;' : '&#9660;';
 
-      rowsHTML += `<div team="gantt-project-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="_ganttToggleGroup('${row.project.id}')">
-        <span team="gantt-toggle-arrow">${arrow}</span>
-        <span team="gantt-project-dot" style="background: ${row.project.color};"></span>
-        <span team="gantt-project-name">${_tlEscape(row.project.name)}</span>
-        <span team="gantt-project-count">${row.taskCount}</span>
-        <button team="gantt-add-subtask-btn" onclick="event.stopPropagation(); openCreateTaskModal('${row.project.id}')" title="Add task">+</button>
+      rowsHTML += `<div class="gantt-project-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="_ganttToggleGroup('${row.project.id}')">
+        <span class="gantt-toggle-arrow">${arrow}</span>
+        <span class="gantt-project-dot" style="background: ${row.project.color};"></span>
+        <span class="gantt-project-name">${_tlEscape(row.project.name)}</span>
+        <span class="gantt-project-count">${row.taskCount}</span>
+        <button class="gantt-add-subtask-btn" onclick="event.stopPropagation(); openCreateTaskModal('${row.project.id}')" title="Add task">+</button>
       </div>`;
 
       for (let i = 0; i < numCols; i++) {
         const col = columns[i];
         const todayClass = col.isToday ? ' gantt-col-today' : '';
-        rowsHTML += `<div team="gantt-project-cell${todayClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
+        rowsHTML += `<div class="gantt-project-cell${todayClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
       }
 
       // Aggregate bar
@@ -572,7 +572,7 @@ function _ganttBuildChart() {
         if (span.startCol >= 0) {
           const gc1 = span.startCol + 2;
           const gc2 = span.endCol + 3;
-          rowsHTML += `<div team="gantt-aggregate-bar" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; background: ${row.project.color};"></div>`;
+          rowsHTML += `<div class="gantt-aggregate-bar" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; background: ${row.project.color};"></div>`;
         }
       }
 
@@ -584,7 +584,7 @@ function _ganttBuildChart() {
         return m ? _tlEscape(m.name) : null;
       }).filter(Boolean);
 
-      rowsHTML += `<div team="gantt-task-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="openEditTaskModal('${task.id}')">
+      rowsHTML += `<div class="gantt-task-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="openEditTaskModal('${task.id}')">
         ${_tlEscape(task.title)}
       </div>`;
 
@@ -592,7 +592,7 @@ function _ganttBuildChart() {
         const col = columns[i];
         const todayClass = col.isToday ? ' gantt-col-today' : '';
         const weekendClass = col.isWeekend ? ' gantt-col-weekend' : '';
-        rowsHTML += `<div team="gantt-cell${todayClass}${weekendClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
+        rowsHTML += `<div class="gantt-cell${todayClass}${weekendClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
       }
 
       const pos = _ganttTaskPosition(task, columns, colWidth);
@@ -603,23 +603,23 @@ function _ganttBuildChart() {
         const doneClass = task.status === 'done' ? ' gantt-bar-done' : '';
         const assigneeLabel = assigneeNames.join(', ');
 
-        rowsHTML += `<div team="gantt-task-bar${doneClass}" data-task-id="${task.id}" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; margin-left: ${pos.marginLeft}px; margin-right: ${pos.marginRight}px; background: ${color};"
+        rowsHTML += `<div class="gantt-task-bar${doneClass}" data-task-id="${task.id}" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; margin-left: ${pos.marginLeft}px; margin-right: ${pos.marginRight}px; background: ${color};"
           onmouseover="showTaskTooltip(event, '${task.id}')"
           onmouseout="hideTaskTooltip()">
-          <div team="gantt-resize-handle gantt-resize-left" data-task-id="${task.id}" data-edge="left"></div>
-          <span team="gantt-bar-label">${_tlEscape(task.title)}</span>
-          <div team="gantt-resize-handle gantt-resize-right" data-task-id="${task.id}" data-edge="right"></div>
+          <div class="gantt-resize-handle gantt-resize-left" data-task-id="${task.id}" data-edge="left"></div>
+          <span class="gantt-bar-label">${_tlEscape(task.title)}</span>
+          <div class="gantt-resize-handle gantt-resize-right" data-task-id="${task.id}" data-edge="right"></div>
         </div>`;
 
         if (assigneeLabel && pos.endCol + 1 < numCols) {
-          rowsHTML += `<div team="gantt-assignee-label" style="grid-row: ${gridRow}; grid-column: ${gc2};">${assigneeLabel}</div>`;
+          rowsHTML += `<div class="gantt-assignee-label" style="grid-row: ${gridRow}; grid-column: ${gc2};">${assigneeLabel}</div>`;
         }
       }
 
     } else if (row.type === 'add') {
       // "Draw to add" row - empty cells for drag-to-create
-      rowsHTML += `<div team="gantt-add-label" style="grid-row: ${gridRow}; grid-column: 1;">
-        <span team="gantt-add-hint">
+      rowsHTML += `<div class="gantt-add-label" style="grid-row: ${gridRow}; grid-column: 1;">
+        <span class="gantt-add-hint">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Click &amp; drag to add
         </span>
@@ -629,7 +629,7 @@ function _ganttBuildChart() {
         const col = columns[i];
         const todayClass = col.isToday ? ' gantt-col-today' : '';
         const weekendClass = col.isWeekend ? ' gantt-col-weekend' : '';
-        rowsHTML += `<div team="gantt-add-cell${todayClass}${weekendClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
+        rowsHTML += `<div class="gantt-add-cell${todayClass}${weekendClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
       }
     }
   }
@@ -640,7 +640,7 @@ function _ganttBuildChart() {
     if (columns[i].isToday) {
       const gc = i + 2;
       const totalGridRows = dataRowStart + rows.length;
-      todayLine = `<div team="gantt-today-line" style="grid-column: ${gc}; grid-row: ${dateRow} / ${totalGridRows};"></div>`;
+      todayLine = `<div class="gantt-today-line" style="grid-column: ${gc}; grid-row: ${dateRow} / ${totalGridRows};"></div>`;
       break;
     }
   }
@@ -648,9 +648,9 @@ function _ganttBuildChart() {
   const gridCols = `${sidebarWidth}px repeat(${numCols}, ${colWidth}px)`;
 
   return `
-    <div team="card gantt-container">
-      <div team="gantt-scroll">
-        <div team="gantt-grid" id="gantt-interactive-grid" style="grid-template-columns: ${gridCols};">
+    <div class="card gantt-container">
+      <div class="gantt-scroll">
+        <div class="gantt-grid" id="gantt-interactive-grid" style="grid-template-columns: ${gridCols};">
           ${monthHeaderHTML}
           ${dateHeaderHTML}
           ${rowsHTML}
@@ -674,16 +674,16 @@ function _tlBuildListView() {
 
   if (filteredTasks.length === 0) {
     return `
-      <div team="card gantt-empty-state">
-        <div team="gantt-empty-icon">
+      <div class="card gantt-empty-state">
+        <div class="gantt-empty-icon">
           <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
         </div>
-        <h3 team="gantt-empty-title">No tasks yet</h3>
-        <p team="gantt-empty-desc">Create a task to see it in the list.</p>
-        <div team="gantt-empty-actions">
-          <button team="tl-action-btn tl-action-btn--primary" onclick="openCreateTaskModal()">
+        <h3 class="gantt-empty-title">No tasks yet</h3>
+        <p class="gantt-empty-desc">Create a task to see it in the list.</p>
+        <div class="gantt-empty-actions">
+          <button class="tl-action-btn tl-action-btn--primary" onclick="openCreateTaskModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Create Task
           </button>
@@ -705,12 +705,12 @@ function _tlBuildListView() {
     const isOverdue = task.end_date < todayISO && task.status !== 'done';
 
     return `
-      <tr onclick="openEditTaskModal('${task.id}')" style="cursor: pointer;" team="${isOverdue ? 'tl-list-row--overdue' : ''}">
+      <tr onclick="openEditTaskModal('${task.id}')" style="cursor: pointer;" class="${isOverdue ? 'tl-list-row--overdue' : ''}">
         <td>
           <div style="display: flex; align-items: center; gap: 8px;">
-            ${project ? `<span team="tl-project-dot" style="background: ${project.color};"></span>` : ''}
+            ${project ? `<span class="tl-project-dot" style="background: ${project.color};"></span>` : ''}
             ${_tlEscape(task.title)}
-            ${isOverdue ? '<span team="tl-overdue-badge">OVERDUE</span>' : ''}
+            ${isOverdue ? '<span class="tl-overdue-badge">OVERDUE</span>' : ''}
           </div>
         </td>
         <td>${project ? _tlEscape(project.name) : '-'}</td>
@@ -718,15 +718,15 @@ function _tlBuildListView() {
         <td>${task.start_date}</td>
         <td>${task.end_date}</td>
         <td>${task.hours_per_week}h/wk</td>
-        <td><span team="tl-status-pill ${statusCls}">${_tlEscape(task.status)}</span></td>
+        <td><span class="tl-status-pill ${statusCls}">${_tlEscape(task.status)}</span></td>
       </tr>
     `;
   }).join('');
 
   return `
-    <div team="gantt-container">
-      <div team="gantt-scroll">
-        <table team="tl-list-table">
+    <div class="gantt-container">
+      <div class="gantt-scroll">
+        <table class="tl-list-table">
           <thead>
             <tr>
               <th>Task</th>
@@ -815,7 +815,7 @@ function _tlToolbarDragStart(e) {
   ghost.style.opacity = '0.85';
   ghost.style.zIndex = '9999';
   ghost.style.pointerEvents = 'none';
-  ghost.innerHTML = '<span team="gantt-bar-label" style="opacity: 0.8;">New Task</span>';
+  ghost.innerHTML = '<span class="gantt-bar-label" style="opacity: 0.8;">New Task</span>';
   document.body.appendChild(ghost);
 
   _tlDrag = {
@@ -931,7 +931,7 @@ function _tlStartCreate(e, cell) {
   ghost.style.pointerEvents = 'none';
   ghost.style.opacity = '0.7';
   ghost.style.zIndex = '20';
-  ghost.innerHTML = '<span team="gantt-bar-label" style="opacity: 0.8;">New Task</span>';
+  ghost.innerHTML = '<span class="gantt-bar-label" style="opacity: 0.8;">New Task</span>';
   grid.appendChild(ghost);
 
   _tlDrag = {
@@ -1051,7 +1051,7 @@ function _tlFinishCreate() {
 
   // Replace label with name input - add naming team for larger size
   ghost.classList.add('gantt-bar-naming');
-  ghost.innerHTML = `<input team="gantt-bar-name-input" type="text" placeholder="Task name..." autofocus>`;
+  ghost.innerHTML = `<input class="gantt-bar-name-input" type="text" placeholder="Task name..." autofocus>`;
 
   const input = ghost.querySelector('.gantt-bar-name-input');
   _tlNaming = true;
@@ -1375,7 +1375,7 @@ function renderTimeline() {
     AppState._timelineInitialLoad = true;
     timelineRefreshData().then(() => renderTimeline());
     content.innerHTML = `
-      <div team="animate-slide-up" style="padding: 48px; text-align: center;">
+      <div class="animate-slide-up" style="padding: 48px; text-align: center;">
         <p style="color: var(--text-muted);">Loading timeline data...</p>
       </div>
     `;
@@ -1456,37 +1456,37 @@ function _tlRenderProjectIndex(content) {
     const visibleAssignees = assignees.slice(0, maxAvatars);
     const extraCount = assignees.length - maxAvatars;
     const avatarStackHTML = visibleAssignees.map((m, i) => `
-      <div team="pi-avatar" style="z-index: ${maxAvatars - i}; border-color: ${ws.color};" title="${_tlEscape(m.name)}">
+      <div class="pi-avatar" style="z-index: ${maxAvatars - i}; border-color: ${ws.color};" title="${_tlEscape(m.name)}">
         ${_tlEscape(m.avatar_initials || '??')}
       </div>
-    `).join('') + (extraCount > 0 ? `<div team="pi-avatar pi-avatar-extra" style="z-index: 0;">+${extraCount}</div>` : '');
+    `).join('') + (extraCount > 0 ? `<div class="pi-avatar pi-avatar-extra" style="z-index: 0;">+${extraCount}</div>` : '');
 
     const desc = ws.description || '';
     const shortDesc = desc.length > 100 ? desc.substring(0, 100) + '...' : desc;
 
     if (viewMode === 'list') {
       return `
-        <div team="pi-list-row" onclick="_tlOpenProject('${ws.id}')">
-          <div team="pi-list-color" style="background: ${ws.color};"></div>
-          <div team="pi-list-info">
-            <div team="pi-list-name">${_tlEscape(ws.name)}</div>
-            <div team="pi-list-meta">${dateRange}${desc ? ' \u00b7 ' + _tlEscape(shortDesc) : ''}</div>
+        <div class="pi-list-row" onclick="_tlOpenProject('${ws.id}')">
+          <div class="pi-list-color" style="background: ${ws.color};"></div>
+          <div class="pi-list-info">
+            <div class="pi-list-name">${_tlEscape(ws.name)}</div>
+            <div class="pi-list-meta">${dateRange}${desc ? ' \u00b7 ' + _tlEscape(shortDesc) : ''}</div>
           </div>
-          <div team="pi-list-status">
-            <span team="pi-status-dot" style="background: ${statusColor};"></span>
-            <span team="pi-status-text">${statusLabel}</span>
+          <div class="pi-list-status">
+            <span class="pi-status-dot" style="background: ${statusColor};"></span>
+            <span class="pi-status-text">${statusLabel}</span>
           </div>
-          <div team="pi-list-people">
-            <div team="pi-avatar-stack pi-avatar-stack--sm">${avatarStackHTML}</div>
+          <div class="pi-list-people">
+            <div class="pi-avatar-stack pi-avatar-stack--sm">${avatarStackHTML}</div>
           </div>
-          <div team="pi-list-tasks">
+          <div class="pi-list-tasks">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
             <span>${taskCount} project${taskCount !== 1 ? 's' : ''}</span>
           </div>
-          <div team="pi-list-duration">
+          <div class="pi-list-duration">
             ${durationWeeks > 0 ? `${durationWeeks} wk${durationWeeks !== 1 ? 's' : ''}` : '\u2014'}
           </div>
-          <div team="pi-list-arrow">
+          <div class="pi-list-arrow">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
           </div>
         </div>
@@ -1494,45 +1494,45 @@ function _tlRenderProjectIndex(content) {
     }
 
     return `
-      <div team="pi-card" onclick="_tlOpenProject('${ws.id}')">
-        <div team="pi-card-header">
-          <div team="pi-card-color-bar" style="background: ${ws.color};"></div>
-          <div team="pi-card-top">
-            <div team="pi-card-status">
-              <span team="pi-status-dot" style="background: ${statusColor};"></span>
-              <span team="pi-status-text">${statusLabel}</span>
+      <div class="pi-card" onclick="_tlOpenProject('${ws.id}')">
+        <div class="pi-card-header">
+          <div class="pi-card-color-bar" style="background: ${ws.color};"></div>
+          <div class="pi-card-top">
+            <div class="pi-card-status">
+              <span class="pi-status-dot" style="background: ${statusColor};"></span>
+              <span class="pi-status-text">${statusLabel}</span>
             </div>
-            <button team="pi-card-menu" onclick="event.stopPropagation(); _tlShowProjectMenu('${ws.id}', event)" title="Options">
+            <button class="pi-card-menu" onclick="event.stopPropagation(); _tlShowProjectMenu('${ws.id}', event)" title="Options">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
             </button>
           </div>
         </div>
-        <div team="pi-card-body">
-          <h3 team="pi-card-title">${_tlEscape(ws.name)}</h3>
-          ${desc ? `<p team="pi-card-desc">${_tlEscape(shortDesc)}</p>` : ''}
-          <div team="pi-card-date">
+        <div class="pi-card-body">
+          <h3 class="pi-card-title">${_tlEscape(ws.name)}</h3>
+          ${desc ? `<p class="pi-card-desc">${_tlEscape(shortDesc)}</p>` : ''}
+          <div class="pi-card-date">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
             <span>${dateRange}</span>
           </div>
           ${allSubtasks.length > 0 ? `
-          <div team="pi-card-progress">
-            <div team="pi-progress-bar">
-              <div team="pi-progress-fill" style="width: ${progress}%; background: ${ws.color};"></div>
+          <div class="pi-card-progress">
+            <div class="pi-progress-bar">
+              <div class="pi-progress-fill" style="width: ${progress}%; background: ${ws.color};"></div>
             </div>
-            <span team="pi-progress-label">${progress}%</span>
+            <span class="pi-progress-label">${progress}%</span>
           </div>
           ` : ''}
         </div>
-        <div team="pi-card-footer">
-          <div team="pi-avatar-stack">${avatarStackHTML}</div>
-          <div team="pi-card-stats">
-            <div team="pi-card-task-count" title="Projects">
+        <div class="pi-card-footer">
+          <div class="pi-avatar-stack">${avatarStackHTML}</div>
+          <div class="pi-card-stats">
+            <div class="pi-card-task-count" title="Projects">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6M9 16h4"/></svg>
               ${taskCount}
             </div>
-            <div team="pi-card-task-count" title="Tasks">
+            <div class="pi-card-task-count" title="Tasks">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
               ${subtaskCount}
             </div>
@@ -1543,29 +1543,29 @@ function _tlRenderProjectIndex(content) {
   }).join('');
 
   const emptyStateHTML = workspaces.length === 0 ? `
-    <div team="pi-empty-state">
-      <div team="pi-empty-icon">
+    <div class="pi-empty-state">
+      <div class="pi-empty-icon">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
           <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
         </svg>
       </div>
-      <h3 team="pi-empty-title">No workspaces yet</h3>
-      <p team="pi-empty-desc">Create your first workspace to start planning your teaching schedule</p>
-      <button team="pi-btn-create-large" onclick="openNewProjectModal()">
+      <h3 class="pi-empty-title">No workspaces yet</h3>
+      <p class="pi-empty-desc">Create your first workspace to start planning your teaching schedule</p>
+      <button class="pi-btn-create-large" onclick="openNewProjectModal()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Create First Workspace
       </button>
     </div>
   ` : (filtered.length === 0 ? `
-    <div team="pi-empty-state pi-empty-state--search">
-      <div team="pi-empty-icon">
+    <div class="pi-empty-state pi-empty-state--search">
+      <div class="pi-empty-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
       </div>
-      <h3 team="pi-empty-title">No matching workspaces</h3>
-      <p team="pi-empty-desc">Try a different search term</p>
+      <h3 class="pi-empty-title">No matching workspaces</h3>
+      <p class="pi-empty-desc">Try a different search term</p>
     </div>
   ` : '');
 
@@ -1573,27 +1573,27 @@ function _tlRenderProjectIndex(content) {
   const listActive = viewMode === 'list' ? 'active' : '';
 
   content.innerHTML = `
-    <div team="pi-page animate-slide-up">
-      <div team="pi-header">
-        <div team="pi-header-left">
-          <div team="pi-search-wrap">
-            <svg team="pi-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <div class="pi-page animate-slide-up">
+      <div class="pi-header">
+        <div class="pi-header-left">
+          <div class="pi-search-wrap">
+            <svg class="pi-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input type="text" team="pi-search" placeholder="Search workspaces..." value="${_tlEscape(AppState.timelineProjectSearch || '')}" oninput="_tlProjectSearch(this.value)">
+            <input type="text" class="pi-search" placeholder="Search workspaces..." value="${_tlEscape(AppState.timelineProjectSearch || '')}" oninput="_tlProjectSearch(this.value)">
           </div>
-          <div team="pi-view-toggle">
-            <button team="pi-view-btn ${gridActive}" onclick="_tlSetProjectViewMode('grid')" title="Grid view">
+          <div class="pi-view-toggle">
+            <button class="pi-view-btn ${gridActive}" onclick="_tlSetProjectViewMode('grid')" title="Grid view">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             </button>
-            <button team="pi-view-btn ${listActive}" onclick="_tlSetProjectViewMode('list')" title="List view">
+            <button class="pi-view-btn ${listActive}" onclick="_tlSetProjectViewMode('list')" title="List view">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
             </button>
           </div>
         </div>
-        <div team="pi-header-right">
-          <span team="pi-project-count">${workspaces.length} workspace${workspaces.length !== 1 ? 's' : ''}</span>
-          <button team="pi-btn-new" onclick="openNewProjectModal()">
+        <div class="pi-header-right">
+          <span class="pi-project-count">${workspaces.length} workspace${workspaces.length !== 1 ? 's' : ''}</span>
+          <button class="pi-btn-new" onclick="openNewProjectModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Workspace
           </button>
@@ -1601,7 +1601,7 @@ function _tlRenderProjectIndex(content) {
       </div>
 
       ${workspaces.length === 0 || filtered.length === 0 ? emptyStateHTML : `
-        <div team="pi-${viewMode === 'list' ? 'list' : 'grid'}">
+        <div class="pi-${viewMode === 'list' ? 'list' : 'grid'}">
           ${cardsHTML}
         </div>
       `}
@@ -1644,16 +1644,16 @@ function _tlShowProjectMenu(workspaceId, event) {
   menu.id = 'pi-context-menu';
   menu.className = 'pi-context-menu';
   menu.innerHTML = `
-    <button team="pi-context-item" onclick="_tlOpenProject('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
+    <button class="pi-context-item" onclick="_tlOpenProject('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       Open Planner
     </button>
-    <button team="pi-context-item" onclick="_tlEditProjectFromIndex('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
+    <button class="pi-context-item" onclick="_tlEditProjectFromIndex('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Edit Workspace
     </button>
-    <div team="pi-context-divider"></div>
-    <button team="pi-context-item pi-context-item--danger" onclick="_tlDeleteProject('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
+    <div class="pi-context-divider"></div>
+    <button class="pi-context-item pi-context-item--danger" onclick="_tlDeleteProject('${workspaceId}'); document.getElementById('pi-context-menu')?.remove();">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
       Delete Workspace
     </button>
@@ -1681,30 +1681,30 @@ function _tlEditProjectFromIndex(workspaceId) {
   if (!ws) return;
 
   const colorSwatches = TL_COLORS.map((c, i) =>
-    `<label team="tl-color-swatch" style="background: ${c};">
+    `<label class="tl-color-swatch" style="background: ${c};">
       <input type="radio" name="tl-edit-project-color" value="${c}" ${c === ws.color ? 'checked' : ''} style="display:none;">
-      <span team="tl-swatch-check">&#10003;</span>
+      <span class="tl-swatch-check">&#10003;</span>
     </label>`
   ).join('');
 
   const body = `
-    <div team="form-group">
-      <label team="form-label">Workspace Name</label>
-      <input type="text" id="tl-edit-proj-name" team="form-input" value="${_tlEscape(ws.name)}">
+    <div class="form-group">
+      <label class="form-label">Workspace Name</label>
+      <input type="text" id="tl-edit-proj-name" class="form-input" value="${_tlEscape(ws.name)}">
     </div>
-    <div team="form-group">
-      <label team="form-label">Description</label>
-      <textarea id="tl-edit-proj-desc" team="form-input" rows="3" placeholder="What is this workspace about?">${_tlEscape(ws.description || '')}</textarea>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea id="tl-edit-proj-desc" class="form-input" rows="3" placeholder="What is this workspace about?">${_tlEscape(ws.description || '')}</textarea>
     </div>
-    <div team="form-group">
-      <label team="form-label">Color</label>
-      <div team="tl-color-palette">${colorSwatches}</div>
+    <div class="form-group">
+      <label class="form-label">Color</label>
+      <div class="tl-color-palette">${colorSwatches}</div>
     </div>
   `;
 
   const footer = `
-    <button team="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button team="btn btn-primary" onclick="_tlSubmitEditProject('${ws.id}')">Save Changes</button>
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="_tlSubmitEditProject('${ws.id}')">Save Changes</button>
   `;
 
   _tlShowModal(_tlModalShell('Edit Workspace', body, footer));
@@ -1778,30 +1778,30 @@ async function _tlDeleteProject(workspaceId) {
 
 function openNewProjectModal() {
   const colorSwatches = TL_COLORS.map((c, i) =>
-    `<label team="tl-color-swatch" style="background: ${c};">
+    `<label class="tl-color-swatch" style="background: ${c};">
       <input type="radio" name="tl-new-project-color" value="${c}" ${i === 0 ? 'checked' : ''} style="display:none;">
-      <span team="tl-swatch-check">&#10003;</span>
+      <span class="tl-swatch-check">&#10003;</span>
     </label>`
   ).join('');
 
   const body = `
-    <div team="form-group">
-      <label team="form-label">Workspace Name</label>
-      <input type="text" id="tl-new-proj-name" team="form-input" placeholder="e.g. Year 10 Mathematics">
+    <div class="form-group">
+      <label class="form-label">Workspace Name</label>
+      <input type="text" id="tl-new-proj-name" class="form-input" placeholder="e.g. Year 10 Mathematics">
     </div>
-    <div team="form-group">
-      <label team="form-label">Description <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
-      <textarea id="tl-new-proj-desc" team="form-input" rows="3" placeholder="What is this workspace about?"></textarea>
+    <div class="form-group">
+      <label class="form-label">Description <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
+      <textarea id="tl-new-proj-desc" class="form-input" rows="3" placeholder="What is this workspace about?"></textarea>
     </div>
-    <div team="form-group">
-      <label team="form-label">Color</label>
-      <div team="tl-color-palette">${colorSwatches}</div>
+    <div class="form-group">
+      <label class="form-label">Color</label>
+      <div class="tl-color-palette">${colorSwatches}</div>
     </div>
   `;
 
   const footer = `
-    <button team="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button team="btn btn-primary" onclick="_tlSubmitNewProject()">Create Workspace</button>
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="_tlSubmitNewProject()">Create Workspace</button>
   `;
 
   _tlShowModal(_tlModalShell('New Workspace', body, footer));
@@ -1872,14 +1872,14 @@ function _tlRenderDetailView(content) {
   AppState.timelineTasks = origTasks;
 
   const backBtn = `
-    <button team="pi-back-btn" onclick="_tlBackToProjects()">
+    <button class="pi-back-btn" onclick="_tlBackToProjects()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       <span>All Workspaces</span>
     </button>
   `;
 
   content.innerHTML = `
-    <div team="animate-slide-up" style="display: flex; flex-direction: column; gap: 16px;">
+    <div class="animate-slide-up" style="display: flex; flex-direction: column; gap: 16px;">
       ${backBtn}
       ${toolbar}
       ${body}
@@ -1909,14 +1909,14 @@ function showTaskTooltip(event, taskId) {
   tooltip.id = 'tl-tooltip';
   tooltip.className = 'tl-tooltip';
   tooltip.innerHTML = `
-    <div team="tl-tooltip-title">${_tlEscape(task.title)}</div>
-    <div team="tl-tooltip-meta">
+    <div class="tl-tooltip-title">${_tlEscape(task.title)}</div>
+    <div class="tl-tooltip-meta">
       ${project ? `<span style="color: ${project.color};">${_tlEscape(project.name)}</span>` : ''}
       ${assigneeNames.length > 0 ? `<span>${assigneeNames.join(', ')}</span>` : ''}
     </div>
-    <div team="tl-tooltip-dates">${task.start_date} &rarr; ${task.end_date}</div>
-    <div team="tl-tooltip-hours">${task.hours_per_week}h/week &middot; ${_tlEscape(task.status)}</div>
-    ${task.description ? `<div team="tl-tooltip-desc">${_tlEscape(task.description)}</div>` : ''}
+    <div class="tl-tooltip-dates">${task.start_date} &rarr; ${task.end_date}</div>
+    <div class="tl-tooltip-hours">${task.hours_per_week}h/week &middot; ${_tlEscape(task.status)}</div>
+    ${task.description ? `<div class="tl-tooltip-desc">${_tlEscape(task.description)}</div>` : ''}
   `;
 
   const x = Math.min(event.pageX + 12, window.innerWidth - 320);
@@ -1940,17 +1940,17 @@ function closeTimelineModal() {
 
 function _tlModalShell(title, bodyHTML, footerHTML) {
   return `
-    <div team="tl-modal" role="dialog" aria-modal="true">
-      <div team="tl-modal-header">
+    <div class="tl-modal" role="dialog" aria-modal="true">
+      <div class="tl-modal-header">
         <h3 style="margin: 0; color: var(--text-primary);">${title}</h3>
-        <button team="btn btn-ghost btn-sm" onclick="closeTimelineModal()" style="padding: 4px;">
+        <button class="btn btn-ghost btn-sm" onclick="closeTimelineModal()" style="padding: 4px;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
       </div>
-      <div team="tl-modal-body">${bodyHTML}</div>
-      <div team="tl-modal-footer">${footerHTML}</div>
+      <div class="tl-modal-body">${bodyHTML}</div>
+      <div class="tl-modal-footer">${footerHTML}</div>
     </div>
   `;
 }
@@ -1989,26 +1989,26 @@ const TL_COLORS = [
 
 function openCreateProjectModal() {
   const colorSwatches = TL_COLORS.map((c, i) =>
-    `<label team="tl-color-swatch" style="background: ${c};">
+    `<label class="tl-color-swatch" style="background: ${c};">
       <input type="radio" name="tl-project-color" value="${c}" ${i === 0 ? 'checked' : ''} style="display:none;">
-      <span team="tl-swatch-check">&#10003;</span>
+      <span class="tl-swatch-check">&#10003;</span>
     </label>`
   ).join('');
 
   const body = `
-    <div team="form-group">
-      <label team="form-label">Project Name</label>
-      <input type="text" id="tl-proj-name" team="form-input" placeholder="e.g. Algebra Fundamentals">
+    <div class="form-group">
+      <label class="form-label">Project Name</label>
+      <input type="text" id="tl-proj-name" class="form-input" placeholder="e.g. Algebra Fundamentals">
     </div>
-    <div team="form-group">
-      <label team="form-label">Color</label>
-      <div team="tl-color-palette">${colorSwatches}</div>
+    <div class="form-group">
+      <label class="form-label">Color</label>
+      <div class="tl-color-palette">${colorSwatches}</div>
     </div>
   `;
 
   const footer = `
-    <button team="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button team="btn btn-primary" onclick="submitCreateProject()">Create Project</button>
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="submitCreateProject()">Create Project</button>
   `;
 
   _tlShowModal(_tlModalShell('New Project', body, footer));
@@ -2046,23 +2046,23 @@ async function submitCreateProject() {
 
 function openCreateMemberModal() {
   const body = `
-    <div team="form-group">
-      <label team="form-label">Full Name</label>
-      <input type="text" id="tl-member-name" team="form-input" placeholder="e.g. Sarah Johnson">
+    <div class="form-group">
+      <label class="form-label">Full Name</label>
+      <input type="text" id="tl-member-name" class="form-input" placeholder="e.g. Sarah Johnson">
     </div>
-    <div team="form-group">
-      <label team="form-label">Year Group / Team</label>
-      <input type="text" id="tl-member-role" team="form-input" placeholder="e.g. Year 10, Team 10B">
+    <div class="form-group">
+      <label class="form-label">Year Group / Team</label>
+      <input type="text" id="tl-member-role" class="form-input" placeholder="e.g. Year 10, Team 10B">
     </div>
-    <div team="form-group">
-      <label team="form-label">Weekly Hours</label>
-      <input type="number" id="tl-member-capacity" team="form-input" value="25" min="1" max="80">
+    <div class="form-group">
+      <label class="form-label">Weekly Hours</label>
+      <input type="number" id="tl-member-capacity" class="form-input" value="25" min="1" max="80">
     </div>
   `;
 
   const footer = `
-    <button team="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button team="btn btn-primary" onclick="submitCreateMember()">Add Worker</button>
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="submitCreateMember()">Add Worker</button>
   `;
 
   _tlShowModal(_tlModalShell('New Worker', body, footer));
@@ -2117,10 +2117,10 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
   const prefillList = prefillAssignee ? prefillAssignee.split(',') : [];
   const memberCheckboxes = members.length > 0 ? members.map(m => {
     const checked = prefillList.includes(m.id) ? 'checked' : '';
-    return `<label team="tl-assignee-chip ${checked ? 'selected' : ''}">
+    return `<label class="tl-assignee-chip ${checked ? 'selected' : ''}">
       <input type="checkbox" name="tl-task-assignees" value="${m.id}" ${checked} onchange="this.parentElement.classList.toggle('selected', this.checked)">
-      <span team="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
-      <span team="tl-assignee-name">${_tlEscape(m.name)}</span>
+      <span class="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
+      <span class="tl-assignee-name">${_tlEscape(m.name)}</span>
     </label>`;
   }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No teams yet</span>';
 
@@ -2128,36 +2128,36 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
   const nextWeek = _tlDateToISO(_tlAddDays(new Date(), 7));
 
   const body = `
-    <div team="form-group">
-      <label team="form-label">Task Name</label>
-      <input type="text" id="tl-task-title" team="form-input" placeholder="e.g. Introduction to Quadratics">
+    <div class="form-group">
+      <label class="form-label">Task Name</label>
+      <input type="text" id="tl-task-title" class="form-input" placeholder="e.g. Introduction to Quadratics">
     </div>
-    <div team="form-group">
-      <label team="form-label">Parent Project</label>
-      <select id="tl-task-project" team="form-input">${projectOpts}</select>
+    <div class="form-group">
+      <label class="form-label">Parent Project</label>
+      <select id="tl-task-project" class="form-input">${projectOpts}</select>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-      <div team="form-group">
-        <label team="form-label">Start Date</label>
-        <input type="date" id="tl-task-start" team="form-input" value="${today}">
+      <div class="form-group">
+        <label class="form-label">Start Date</label>
+        <input type="date" id="tl-task-start" class="form-input" value="${today}">
       </div>
-      <div team="form-group">
-        <label team="form-label">End Date</label>
-        <input type="date" id="tl-task-end" team="form-input" value="${nextWeek}">
+      <div class="form-group">
+        <label class="form-label">End Date</label>
+        <input type="date" id="tl-task-end" class="form-input" value="${nextWeek}">
       </div>
     </div>
-    <div team="form-group">
-      <label team="form-label">Assigned Teams</label>
-      <div team="tl-assignee-grid">${memberCheckboxes}</div>
+    <div class="form-group">
+      <label class="form-label">Assigned Teams</label>
+      <div class="tl-assignee-grid">${memberCheckboxes}</div>
     </div>
-    <div team="form-group">
-      <label team="form-label">Notes <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
-      <textarea id="tl-task-desc" team="form-input" rows="3" placeholder="Task objectives, key points..."></textarea>
+    <div class="form-group">
+      <label class="form-label">Notes <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
+      <textarea id="tl-task-desc" class="form-input" rows="3" placeholder="Task objectives, key points..."></textarea>
     </div>
-    <div team="form-group">
-      <label team="form-label">Files</label>
-      <div team="tl-files-list" id="tl-task-files-list"></div>
-      <label team="tl-file-add-btn">
+    <div class="form-group">
+      <label class="form-label">Files</label>
+      <div class="tl-files-list" id="tl-task-files-list"></div>
+      <label class="tl-file-add-btn">
         <input type="file" id="tl-task-file-input" multiple hidden onchange="_tlHandleFileSelect(event, 'tl-task-files-list')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
         Attach files
@@ -2166,8 +2166,8 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
   `;
 
   const footer = `
-    <button team="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button team="btn btn-primary" onclick="submitCreateTask()">Create Task</button>
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="submitCreateTask()">Create Task</button>
   `;
 
   _tlShowModal(_tlModalShell('New Task', body, footer));
@@ -2232,10 +2232,10 @@ function openEditTaskModal(taskId) {
   const currentAssignees = task.assignee_id ? task.assignee_id.split(',') : [];
   const memberCheckboxes = members.length > 0 ? members.map(m => {
     const checked = currentAssignees.includes(m.id) ? 'checked' : '';
-    return `<label team="tl-assignee-chip ${checked ? 'selected' : ''}">
+    return `<label class="tl-assignee-chip ${checked ? 'selected' : ''}">
       <input type="checkbox" name="tl-edit-assignees" value="${m.id}" ${checked} onchange="this.parentElement.classList.toggle('selected', this.checked)">
-      <span team="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
-      <span team="tl-assignee-name">${_tlEscape(m.name)}</span>
+      <span class="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
+      <span class="tl-assignee-name">${_tlEscape(m.name)}</span>
     </label>`;
   }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No teams yet</span>';
 
@@ -2256,54 +2256,54 @@ function openEditTaskModal(taskId) {
   const statusCls = autoStatus === 'done' ? 'tl-status-done' : autoStatus === 'in_progress' ? 'tl-status-progress' : 'tl-status-planned';
 
   const existingFilesHTML = files.map((f, i) => `
-    <div team="tl-file-item" data-file-path="${_tlEscape(f.path)}" data-file-name="${_tlEscape(f.name)}">
+    <div class="tl-file-item" data-file-path="${_tlEscape(f.path)}" data-file-name="${_tlEscape(f.name)}">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <span team="tl-file-name" title="${_tlEscape(f.path)}">${_tlEscape(f.name)}</span>
-      <button team="tl-file-open" onclick="_tlOpenFile('${_tlEscape(f.path).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" title="Open file">
+      <span class="tl-file-name" title="${_tlEscape(f.path)}">${_tlEscape(f.name)}</span>
+      <button class="tl-file-open" onclick="_tlOpenFile('${_tlEscape(f.path).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" title="Open file">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       </button>
-      <button team="tl-file-remove" onclick="this.closest('.tl-file-item').remove()" title="Remove">&times;</button>
+      <button class="tl-file-remove" onclick="this.closest('.tl-file-item').remove()" title="Remove">&times;</button>
     </div>
   `).join('');
 
   const body = `
-    <div team="form-group">
-      <label team="form-label">Task Name</label>
-      <input type="text" id="tl-edit-title" team="form-input" value="${_tlEscape(task.title)}">
+    <div class="form-group">
+      <label class="form-label">Task Name</label>
+      <input type="text" id="tl-edit-title" class="form-input" value="${_tlEscape(task.title)}">
     </div>
-    <div team="form-group">
-      <label team="form-label">Parent Project</label>
-      <select id="tl-edit-project" team="form-input">${projectOpts}</select>
+    <div class="form-group">
+      <label class="form-label">Parent Project</label>
+      <select id="tl-edit-project" class="form-input">${projectOpts}</select>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-      <div team="form-group">
-        <label team="form-label">Start Date</label>
-        <input type="date" id="tl-edit-start" team="form-input" value="${task.start_date}">
+      <div class="form-group">
+        <label class="form-label">Start Date</label>
+        <input type="date" id="tl-edit-start" class="form-input" value="${task.start_date}">
       </div>
-      <div team="form-group">
-        <label team="form-label">End Date</label>
-        <input type="date" id="tl-edit-end" team="form-input" value="${task.end_date}">
-      </div>
-    </div>
-    <div team="form-group">
-      <label team="form-label">Assigned Teams</label>
-      <div team="tl-assignee-grid">${memberCheckboxes}</div>
-    </div>
-    <div team="form-group">
-      <label team="form-label">Status</label>
-      <div team="tl-auto-status">
-        <span team="tl-status-pill ${statusCls}">${statusLabel}</span>
-        <span team="tl-auto-status-hint">Auto-set from dates</span>
+      <div class="form-group">
+        <label class="form-label">End Date</label>
+        <input type="date" id="tl-edit-end" class="form-input" value="${task.end_date}">
       </div>
     </div>
-    <div team="form-group">
-      <label team="form-label">Notes</label>
-      <textarea id="tl-edit-desc" team="form-input" rows="3" placeholder="Task objectives, key points...">${_tlEscape(notes)}</textarea>
+    <div class="form-group">
+      <label class="form-label">Assigned Teams</label>
+      <div class="tl-assignee-grid">${memberCheckboxes}</div>
     </div>
-    <div team="form-group">
-      <label team="form-label">Files</label>
-      <div team="tl-files-list" id="tl-edit-files-list">${existingFilesHTML}</div>
-      <label team="tl-file-add-btn">
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <div class="tl-auto-status">
+        <span class="tl-status-pill ${statusCls}">${statusLabel}</span>
+        <span class="tl-auto-status-hint">Auto-set from dates</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea id="tl-edit-desc" class="form-input" rows="3" placeholder="Task objectives, key points...">${_tlEscape(notes)}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Files</label>
+      <div class="tl-files-list" id="tl-edit-files-list">${existingFilesHTML}</div>
+      <label class="tl-file-add-btn">
         <input type="file" id="tl-edit-file-input" multiple hidden onchange="_tlHandleFileSelect(event, 'tl-edit-files-list')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
         Attach files
@@ -2312,9 +2312,9 @@ function openEditTaskModal(taskId) {
   `;
 
   const footer = `
-    <button team="btn btn-ghost" onclick="deleteTimelineTask('${task.id}')" style="color: var(--error); margin-right: auto;">Delete</button>
-    <button team="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button team="btn btn-primary" onclick="submitEditTask('${task.id}')">Save Changes</button>
+    <button class="btn btn-ghost" onclick="deleteTimelineTask('${task.id}')" style="color: var(--error); margin-right: auto;">Delete</button>
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="submitEditTask('${task.id}')">Save Changes</button>
   `;
 
   _tlShowModal(_tlModalShell('Edit Task', body, footer));
@@ -2398,11 +2398,11 @@ function _tlHandleFileSelect(event, listId) {
     item.dataset.fileName = fileName;
     item.innerHTML = `
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <span team="tl-file-name" title="${_tlEscape(filePath)}">${_tlEscape(fileName)}</span>
-      <button team="tl-file-open" onclick="_tlOpenFile('${_tlEscape(filePath).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" title="Open file">
+      <span class="tl-file-name" title="${_tlEscape(filePath)}">${_tlEscape(fileName)}</span>
+      <button class="tl-file-open" onclick="_tlOpenFile('${_tlEscape(filePath).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" title="Open file">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       </button>
-      <button team="tl-file-remove" onclick="this.closest('.tl-file-item').remove()" title="Remove">&times;</button>
+      <button class="tl-file-remove" onclick="this.closest('.tl-file-item').remove()" title="Remove">&times;</button>
     `;
     list.appendChild(item);
   }
