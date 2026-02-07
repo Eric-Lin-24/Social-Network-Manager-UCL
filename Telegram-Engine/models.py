@@ -24,4 +24,25 @@ class SubscribedUser(Base):
     chat_name = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class EmailSubscribedUser(Base):
+    __tablename__ = "email_subscribed_users"
+
+    user_id = Column(String, primary_key=True)
+    email_address = Column(String, nullable=False, unique=True)
+    user_name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class ScheduledEmail(Base):
+    __tablename__ = "scheduled_emails"
+
+    id = Column(String, primary_key=True)
+    from_sender = Column(String, nullable=False)
+    target_user_id = Column(JSON, nullable=False)  # Store list as JSON for SQLite compatibility
+    subject = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    scheduled_timestamp = Column(DateTime, nullable=False)
+    file_paths = Column(JSON, nullable=True)  # Store list as JSON for SQLite compatibility
+    is_sent = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
