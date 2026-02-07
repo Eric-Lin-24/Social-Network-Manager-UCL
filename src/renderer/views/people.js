@@ -1,553 +1,575 @@
 // ============================================
-// CLASSES VIEW - Class & Student Dashboard
-// Teacher-focused: attendance, grades, workload,
-// class roster, and student management
+// CLASSES VIEW - Class-focused Dashboard
+// Manage classes, assign students, view rosters,
+// track attendance and grades per class.
 // ============================================
 
-// ===== People State =====
+// ===== State =====
 
-if (!AppState.peopleTab) AppState.peopleTab = 'overview'; // 'overview' | 'roster' | 'attendance' | 'grades' | 'activities'
-if (!AppState.peopleWeeks) AppState.peopleWeeks = 4;
-if (!AppState.peopleFilterMember) AppState.peopleFilterMember = '';
-if (!AppState.peopleFilter) AppState.peopleFilter = ''; // '' | 'missing' | 'overtime'
-if (!AppState.peopleSearchQuery) AppState.peopleSearchQuery = '';
-if (!AppState._peopleInitialLoad) AppState._peopleInitialLoad = false;
+if (!AppState.classesTab) AppState.classesTab = 'overview';
+if (!AppState.classesSearchQuery) AppState.classesSearchQuery = '';
+if (!AppState._classesInitialLoad) AppState._classesInitialLoad = false;
+if (!AppState._classesExpandedId) AppState._classesExpandedId = null;
 
 // Attendance state
-if (!AppState._attendanceData) AppState._attendanceData = {}; // { 'memberId_YYYY-MM-DD': 'present'|'absent'|'late' }
+if (!AppState._attendanceData) AppState._attendanceData = {};
 if (!AppState._attendanceWeekOffset) AppState._attendanceWeekOffset = 0;
+if (!AppState._attendanceClassFilter) AppState._attendanceClassFilter = '';
 
 // Grade state
-if (!AppState._gradesData) AppState._gradesData = {}; // { 'memberId_assignmentId': score }
-if (!AppState._gradeAssignments) AppState._gradeAssignments = []; // [{id, name, maxScore, date}]
+if (!AppState._gradesData) AppState._gradesData = {};
+if (!AppState._gradeAssignments) AppState._gradeAssignments = [];
 
-// ===== Date Helpers (scoped to people view) =====
+// ===== Helpers =====
 
-function _pplDateToISO(date) {
+function _clsEscape(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _clsDateToISO(date) {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function _pplParseDate(str) {
+function _clsParseDate(str) {
   const parts = str.split('-');
   return new Date(+parts[0], +parts[1] - 1, +parts[2]);
 }
 
-function _pplWeekStart(date) {
+function _clsWeekStart(date) {
   const d = new Date(date);
-  const day = d.getDay(); // 0=Sun
-  d.setDate(d.getDate() - ((day + 6) % 7)); // Monday as start
+  const day = d.getDay();
+  d.setDate(d.getDate() - ((day + 6) % 7));
   d.setHours(0, 0, 0, 0);
   return d;
 }
 
-function _pplAddDays(date, n) {
+function _clsAddDays(date, n) {
   const d = new Date(date);
   d.setDate(d.getDate() + n);
   return d;
 }
 
-function _pplEscape(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-// ===== Week Column Generation =====
-
-function _pplGetWeeks() {
-  const numWeeks = AppState.peopleWeeks || 4;
-  const offset = AppState._peopleWeekOffset || 0;
-
-  const now = new Date();
-  const baseStart = _pplWeekStart(now);
-  const start = _pplAddDays(baseStart, offset * 7);
-
-  const weeks = [];
-  const todayISO = _pplDateToISO(new Date());
-
-  for (let i = 0; i < numWeeks; i++) {
-    const weekStart = _pplAddDays(start, i * 7);
-    const weekEnd = _pplAddDays(weekStart, 6);
-    const isCurrent = todayISO >= _pplDateToISO(weekStart) && todayISO <= _pplDateToISO(weekEnd);
-    const isFuture = _pplDateToISO(weekStart) > todayISO;
-
-    weeks.push({
-      start: weekStart,
-      end: weekEnd,
-      startISO: _pplDateToISO(weekStart),
-      endISO: _pplDateToISO(weekEnd),
-      isCurrent,
-      isFuture,
-    });
-  }
-  return weeks;
-}
-
-function _pplOrdinal(n) {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
-
-function _pplFormatRangeLabel(weeks) {
-  if (weeks.length === 0) return '';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const s = weeks[0].start;
-  const e = weeks[weeks.length - 1].end;
-  return `${months[s.getMonth()]} ${s.getDate()} - ${months[e.getMonth()]} ${e.getDate()}`;
-}
-
-// ===== Capacity Computation =====
-
-function _pplComputeMemberWeekHours(memberId, weekStartISO, weekEndISO, tasks) {
-  let planned = 0;
-  let logged = 0;
-
-  for (const task of tasks) {
-    if (task.assignee_id !== memberId) continue;
-    if (task.end_date < weekStartISO || task.start_date > weekEndISO) continue;
-
-    const hpw = task.hours_per_week || 0;
-
-    if (task.status === 'done') {
-      logged += hpw;
-    } else if (task.status === 'in_progress') {
-      logged += Math.round(hpw * 0.6);
-      planned += Math.round(hpw * 0.4);
-    } else {
-      planned += hpw;
-    }
-  }
-
-  return { planned, logged };
-}
-
-function _pplComputeAllData() {
-  const members = AppState.timelineTeamMembers || [];
-  const tasks = AppState.timelineTasks || [];
-  const weeks = _pplGetWeeks();
-
-  const memberData = [];
-
-  for (const member of members) {
-    const weeklyData = [];
-    let totalLogged = 0;
-    let totalPlanned = 0;
-    let totalCapacity = 0;
-    let hasOvertime = false;
-    let hasMissing = false;
-
-    for (const week of weeks) {
-      const { planned, logged } = _pplComputeMemberWeekHours(
-        member.id, week.startISO, week.endISO, tasks
-      );
-      const capacity = member.weekly_capacity_hours || 40;
-      const overtime = Math.max(0, (logged + planned) - capacity);
-      const capacityLeft = Math.max(0, capacity - logged - planned);
-
-      if (overtime > 0) hasOvertime = true;
-      if (!week.isFuture && logged === 0 && planned > 0) hasMissing = true;
-      if (!week.isFuture && logged === 0 && planned === 0 && capacity > 0) hasMissing = true;
-
-      totalLogged += logged;
-      totalPlanned += planned;
-      totalCapacity += capacity;
-
-      weeklyData.push({ week, logged, planned, capacity, overtime, capacityLeft });
-    }
-
-    memberData.push({
-      member, weeklyData, totalLogged, totalPlanned, totalCapacity, hasOvertime, hasMissing,
-    });
-  }
-
-  return { memberData, weeks };
-}
-
-// ===== Navigation =====
-
-function _pplNavigateWeeks(direction) {
-  if (!AppState._peopleWeekOffset) AppState._peopleWeekOffset = 0;
-  AppState._peopleWeekOffset += direction * (AppState.peopleWeeks || 4);
-  renderPeople();
-}
-
-function _pplSetWeeks(n) {
-  AppState.peopleWeeks = n;
-  renderPeople();
-}
-
-function _pplSetTab(tab) {
-  AppState.peopleTab = tab;
-  renderPeople();
-}
-
-function _pplSetFilter(filter) {
-  AppState.peopleFilter = AppState.peopleFilter === filter ? '' : filter;
-  renderPeople();
-}
-
-function _pplSetFilterMember(id) {
-  AppState.peopleFilterMember = id;
-  renderPeople();
-}
-
-function _pplSearchMembers(query) {
-  AppState.peopleSearchQuery = query;
-  renderPeople();
-}
-
-// ===== Avatar Color =====
-
-function _pplAvatarColor(name) {
+function _clsAvatarColor(name) {
   const colors = ['#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#06b6d4'];
   let hash = 0;
   for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
 }
 
-// ===== Overview Stats Cards =====
+function _clsTimeAgo(dateStr) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return `${Math.floor(diff / 604800)}w ago`;
+}
 
-function _pplBuildOverviewStats() {
+// Map students to classes via tasks: a student belongs to a class if they have a task in that class
+function _clsGetClassStudents(classId) {
+  const tasks = AppState.timelineTasks || [];
+  const members = AppState.timelineTeamMembers || [];
+  const studentIds = new Set();
+  for (const t of tasks) {
+    if (t.project_id === classId && t.assignee_id) {
+      t.assignee_id.split(',').forEach(id => studentIds.add(id.trim()));
+    }
+  }
+  return members.filter(m => studentIds.has(m.id));
+}
+
+// Get all students assigned to ANY class
+function _clsGetAllAssignedStudents() {
+  const tasks = AppState.timelineTasks || [];
+  const ids = new Set();
+  for (const t of tasks) {
+    if (t.assignee_id) t.assignee_id.split(',').forEach(id => ids.add(id.trim()));
+  }
+  return ids;
+}
+
+// ===== Navigation =====
+
+function _clsSetTab(tab) {
+  AppState.classesTab = tab;
+  renderPeople();
+}
+
+function _clsSearch(query) {
+  AppState.classesSearchQuery = query;
+  renderPeople();
+}
+
+function _clsExpandClass(classId) {
+  AppState._classesExpandedId = AppState._classesExpandedId === classId ? null : classId;
+  renderPeople();
+}
+
+// ===== OVERVIEW =====
+
+function _clsBuildOverviewStats() {
+  const projects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
   const tasks = AppState.timelineTasks || [];
-  const todayISO = _pplDateToISO(new Date());
+  const todayISO = _clsDateToISO(new Date());
 
+  const totalClasses = projects.length;
   const totalStudents = members.length;
   const activeLessons = tasks.filter(t => t.status === 'in_progress').length;
   const completedLessons = tasks.filter(t => t.status === 'done').length;
-  const plannedLessons = tasks.filter(t => t.status === 'planned').length;
-  const totalLessons = completedLessons + activeLessons + plannedLessons;
-
-  // Upcoming deadlines (lessons ending within next 7 days)
-  const nextWeekISO = _pplDateToISO(_pplAddDays(new Date(), 7));
-  const upcomingDeadlines = tasks.filter(t => t.end_date >= todayISO && t.end_date <= nextWeekISO && t.status !== 'done').length;
-
-  // Overdue lessons
+  const totalLessons = tasks.length;
   const overdueLessons = tasks.filter(t => t.end_date < todayISO && t.status !== 'done').length;
 
-  // Attendance rate
-  const attendanceEntries = Object.values(AppState._attendanceData || {});
-  const totalEntries = attendanceEntries.length;
-  const presentCount = attendanceEntries.filter(v => v === 'present').length;
-  const attendanceRate = totalEntries > 0 ? Math.round((presentCount / totalEntries) * 100) : null;
-
   return `
-    <div class="cls-stats-grid">
-      <div class="cls-stat-card">
-        <div class="cls-stat-icon cls-stat-icon--students">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
-            <circle cx="17" cy="11" r="2.5"/><path d="M21 21v-1.5a3 3 0 0 0-2.5-2.96"/>
-          </svg>
-        </div>
-        <div class="cls-stat-info">
-          <span class="cls-stat-value">${totalStudents}</span>
-          <span class="cls-stat-label">Total Students</span>
-        </div>
+    <div class="cls-stats-row">
+      <div class="cls-stat-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        <span class="cls-stat-pill-val">${totalClasses}</span>
+        <span class="cls-stat-pill-label">Classes</span>
       </div>
-
-      <div class="cls-stat-card">
-        <div class="cls-stat-icon cls-stat-icon--active">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-          </svg>
-        </div>
-        <div class="cls-stat-info">
-          <span class="cls-stat-value">${activeLessons}</span>
-          <span class="cls-stat-label">Active Lessons</span>
-        </div>
+      <div class="cls-stat-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+          <circle cx="17" cy="11" r="2.5"/><path d="M21 21v-1.5a3 3 0 0 0-2.5-2.96"/>
+        </svg>
+        <span class="cls-stat-pill-val">${totalStudents}</span>
+        <span class="cls-stat-pill-label">Students</span>
       </div>
-
-      <div class="cls-stat-card">
-        <div class="cls-stat-icon cls-stat-icon--done">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-          </svg>
-        </div>
-        <div class="cls-stat-info">
-          <span class="cls-stat-value">${completedLessons}<span class="cls-stat-sub">/${totalLessons}</span></span>
-          <span class="cls-stat-label">Completed</span>
-        </div>
+      <div class="cls-stat-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+        <span class="cls-stat-pill-val">${activeLessons}<span class="cls-stat-pill-sub">/${totalLessons}</span></span>
+        <span class="cls-stat-pill-label">Active Lessons</span>
       </div>
-
-      <div class="cls-stat-card ${overdueLessons > 0 ? 'cls-stat-card--alert' : ''}">
-        <div class="cls-stat-icon ${overdueLessons > 0 ? 'cls-stat-icon--overdue' : 'cls-stat-icon--upcoming'}">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-        </div>
-        <div class="cls-stat-info">
-          <span class="cls-stat-value">${overdueLessons > 0 ? overdueLessons : upcomingDeadlines}</span>
-          <span class="cls-stat-label">${overdueLessons > 0 ? 'Overdue' : 'Due This Week'}</span>
-        </div>
+      <div class="cls-stat-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        <span class="cls-stat-pill-val">${completedLessons}</span>
+        <span class="cls-stat-pill-label">Completed</span>
       </div>
-
-      ${attendanceRate !== null ? `
-      <div class="cls-stat-card">
-        <div class="cls-stat-icon cls-stat-icon--attendance">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>
-          </svg>
-        </div>
-        <div class="cls-stat-info">
-          <span class="cls-stat-value">${attendanceRate}%</span>
-          <span class="cls-stat-label">Attendance Rate</span>
-        </div>
-      </div>
-      ` : ''}
+      ${overdueLessons > 0 ? `
+      <div class="cls-stat-pill cls-stat-pill--alert">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span class="cls-stat-pill-val">${overdueLessons}</span>
+        <span class="cls-stat-pill-label">Overdue</span>
+      </div>` : ''}
     </div>
   `;
 }
 
-// ===== Teaching Load Chart =====
+function _clsBuildClassCards() {
+  const projects = AppState.timelineProjects || [];
+  const tasks = AppState.timelineTasks || [];
+  const searchQ = (AppState.classesSearchQuery || '').toLowerCase();
+  const todayISO = _clsDateToISO(new Date());
+  const expandedId = AppState._classesExpandedId;
 
-function _pplBuildChart(allData) {
-  const { memberData, weeks } = allData;
-
-  const weekAggregates = weeks.map((week, wi) => {
-    let logged = 0, planned = 0, capacityLeft = 0, overtime = 0, totalCapacity = 0;
-    for (const md of memberData) {
-      const wd = md.weeklyData[wi];
-      logged += wd.logged;
-      planned += wd.planned;
-      overtime += wd.overtime;
-      capacityLeft += wd.capacityLeft;
-      totalCapacity += wd.capacity;
-    }
-    return { week, logged, planned, capacityLeft, overtime, totalCapacity };
-  });
-
-  const maxVal = Math.max(1, ...weekAggregates.map(w => w.totalCapacity), ...weekAggregates.map(w => w.logged + w.planned + w.overtime));
-  const yMax = Math.ceil(maxVal / 30) * 30;
-  const ySteps = [];
-  for (let v = 0; v <= yMax; v += Math.max(30, Math.floor(yMax / 4 / 10) * 10)) {
-    ySteps.push(v);
-  }
-  if (ySteps[ySteps.length - 1] < yMax) ySteps.push(yMax);
-
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  const barsHTML = weekAggregates.map((agg) => {
-    const chartH = 200;
-    const loggedH = (agg.logged / yMax) * chartH;
-    const plannedH = (agg.planned / yMax) * chartH;
-    const overtimeH = (agg.overtime / yMax) * chartH;
-    const capLeftH = (agg.capacityLeft / yMax) * chartH;
-
-    const s = agg.week.start;
-    const e = agg.week.end;
-    const label1 = `${months[s.getMonth()]} ${s.getDate()} -`;
-    const label2 = `${months[e.getMonth()]} ${e.getDate()}`;
-    const isFuture = agg.week.isFuture;
-    const isCurrent = agg.week.isCurrent;
-
-    return `
-      <div class="ppl-bar-col ${isCurrent ? 'ppl-bar-col--current' : ''}">
-        <div class="ppl-bar-stack" style="height: ${chartH}px;">
-          <div class="ppl-bar-segment ppl-bar-cap-left ${isFuture ? 'ppl-bar-hatched' : ''}" style="height: ${capLeftH}px;" title="Available: ${agg.capacityLeft}h"></div>
-          <div class="ppl-bar-segment ppl-bar-overtime" style="height: ${overtimeH}px;" title="Overloaded: ${agg.overtime}h"></div>
-          <div class="ppl-bar-segment ppl-bar-planned ${isFuture ? 'ppl-bar-hatched' : ''}" style="height: ${plannedH}px;" title="Planned: ${agg.planned}h"></div>
-          <div class="ppl-bar-segment ppl-bar-logged" style="height: ${loggedH}px;" title="Taught: ${agg.logged}h"></div>
-        </div>
-        <div class="ppl-bar-label">${label1}<br>${label2}</div>
-      </div>
-    `;
-  }).join('');
-
-  const yLabelsHTML = ySteps.map(v => {
-    const bottom = (v / yMax) * 200;
-    return `<span class="ppl-y-label" style="bottom: ${bottom}px;">${v}</span>`;
-  }).join('');
-
-  const gridLinesHTML = ySteps.map(v => {
-    const bottom = (v / yMax) * 200;
-    return `<div class="ppl-grid-line" style="bottom: ${bottom}px;"></div>`;
-  }).join('');
-
-  return `
-    <div class="ppl-chart-card">
-      <div class="ppl-chart-header">
-        <h3 class="ppl-chart-title">Teaching Load per Week</h3>
-        <div class="ppl-legend">
-          <span class="ppl-legend-item"><span class="ppl-legend-dot ppl-legend-logged"></span> Taught</span>
-          <span class="ppl-legend-item"><span class="ppl-legend-dot ppl-legend-planned"></span> Planned</span>
-          <span class="ppl-legend-item"><span class="ppl-legend-dot ppl-legend-capacity"></span> Available</span>
-          <span class="ppl-legend-item"><span class="ppl-legend-dot ppl-legend-overtime"></span> Overloaded</span>
-        </div>
-      </div>
-      <div class="ppl-chart-area">
-        <div class="ppl-y-axis">${yLabelsHTML}</div>
-        <div class="ppl-chart-inner">
-          ${gridLinesHTML}
-          <div class="ppl-bars-row">${barsHTML}</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// ===== Filter Badges =====
-
-function _pplBuildFilters(allData) {
-  const active = AppState.peopleFilter || '';
-  const missingCount = allData.memberData.filter(m => m.hasMissing).length;
-  const overtimeCount = allData.memberData.filter(m => m.hasOvertime).length;
-
-  return `
-    <div class="ppl-filters">
-      <span class="ppl-filter-label">Filter</span>
-      <button class="ppl-filter-badge ${active === 'missing' ? 'ppl-filter-badge--active' : ''}" onclick="_pplSetFilter('missing')">
-        Behind schedule <span class="ppl-filter-emoji">\u{1F634}</span>
-        ${missingCount > 0 ? `<span class="ppl-filter-count">${missingCount}</span>` : ''}
-      </button>
-      <button class="ppl-filter-badge ${active === 'overtime' ? 'ppl-filter-badge--active' : ''}" onclick="_pplSetFilter('overtime')">
-        Overloaded <span class="ppl-filter-emoji">\u{1F525}</span>
-        ${overtimeCount > 0 ? `<span class="ppl-filter-count">${overtimeCount}</span>` : ''}
-      </button>
-    </div>
-  `;
-}
-
-// ===== Student Table (Teaching Load) =====
-
-function _pplBuildTable(allData) {
-  const { memberData, weeks } = allData;
-  const filter = AppState.peopleFilter || '';
-  const searchQ = (AppState.peopleSearchQuery || '').toLowerCase();
-
-  let filtered = memberData;
-  if (filter === 'missing') filtered = filtered.filter(m => m.hasMissing);
-  if (filter === 'overtime') filtered = filtered.filter(m => m.hasOvertime);
-  if (searchQ) filtered = filtered.filter(m => m.member.name.toLowerCase().includes(searchQ));
+  let filtered = projects;
+  if (searchQ) filtered = filtered.filter(p => p.name.toLowerCase().includes(searchQ));
 
   if (filtered.length === 0) {
-    return `<div class="ppl-table-empty"><p>No students match the current filter.</p></div>`;
+    return `
+      <div class="cls-empty">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.2" stroke-linecap="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        <p>No classes found. Create a class in the Planner to get started.</p>
+      </div>
+    `;
   }
 
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `<div class="cls-cards-grid">${filtered.map(project => {
+    const classTasks = tasks.filter(t => t.project_id === project.id);
+    const students = _clsGetClassStudents(project.id);
+    const active = classTasks.filter(t => t.status === 'in_progress').length;
+    const done = classTasks.filter(t => t.status === 'done').length;
+    const planned = classTasks.filter(t => t.status === 'planned' || (!t.status || t.status === '')).length;
+    const overdue = classTasks.filter(t => t.end_date < todayISO && t.status !== 'done').length;
+    const color = project.color || '#14b8a6';
+    const isExpanded = expandedId === project.id;
 
-  const weekHeaders = weeks.map(week => {
-    const s = week.start;
-    const e = week.end;
-    const monthLabel = months[s.getMonth()];
-    const isCurrent = week.isCurrent;
-    return `<th class="${isCurrent ? 'ppl-th-current' : ''}">
-      <span class="ppl-th-month">${isCurrent ? `<span class="ppl-th-current-tag">${monthLabel}</span>` : monthLabel}</span>
-      <span class="ppl-th-range">${_pplOrdinal(s.getDate())} - ${_pplOrdinal(e.getDate())}</span>
-    </th>`;
-  }).join('');
+    // Progress bar
+    const total = classTasks.length || 1;
+    const donePct = (done / total) * 100;
+    const activePct = (active / total) * 100;
 
-  const rows = filtered.map(md => {
-    const m = md.member;
-    const initials = m.avatar_initials || '??';
-    const capacity = m.weekly_capacity_hours || 40;
+    // Upcoming lesson
+    const upcoming = classTasks
+      .filter(t => t.start_date >= todayISO && t.status !== 'done')
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
 
-    const weekCells = md.weeklyData.map(wd => {
-      const total = wd.logged + wd.planned + wd.overtime;
-      const maxW = wd.capacity || 1;
-      const barMax = Math.max(maxW, total);
-
-      const loggedPct = (wd.logged / barMax) * 100;
-      const plannedPct = (wd.planned / barMax) * 100;
-      const overtimePct = (wd.overtime / barMax) * 100;
-      const capPct = (wd.capacityLeft / barMax) * 100;
-      const isFuture = wd.week.isFuture;
-
-      return `<td>
-        <div class="ppl-cell-bar" title="Taught: ${wd.logged}h, Planned: ${wd.planned}h, Overloaded: ${wd.overtime}h">
-          <div class="ppl-cell-bar-seg ppl-cell-logged" style="width: ${loggedPct}%"></div>
-          <div class="ppl-cell-bar-seg ppl-cell-overtime" style="width: ${overtimePct}%"></div>
-          <div class="ppl-cell-bar-seg ppl-cell-planned ${isFuture ? 'ppl-cell-hatched' : ''}" style="width: ${plannedPct}%"></div>
-          <div class="ppl-cell-bar-seg ppl-cell-capleft ${isFuture ? 'ppl-cell-hatched-light' : ''}" style="width: ${capPct}%"></div>
-        </div>
-      </td>`;
+    // Student avatars (max 5)
+    const avatarHTML = students.slice(0, 5).map(s => {
+      const ini = s.avatar_initials || s.name.substring(0, 2).toUpperCase();
+      return `<div class="cls-card-avatar" style="background: ${_clsAvatarColor(s.name)}" title="${_clsEscape(s.name)}">${_clsEscape(ini)}</div>`;
     }).join('');
+    const extraStudents = students.length > 5 ? `<div class="cls-card-avatar cls-card-avatar--extra">+${students.length - 5}</div>` : '';
 
-    const totalH = Math.floor(md.totalLogged);
-    const totalM = Math.round((md.totalLogged - totalH) * 60);
-    const loggedDisplay = totalM > 0 ? `${totalH}h${String(totalM).padStart(2, '0')}m` : `${totalH}h`;
-    const loggedTotalPct = md.totalCapacity > 0 ? Math.min(100, (md.totalLogged / md.totalCapacity) * 100) : 0;
-    const overtimeTotalPct = md.totalCapacity > 0 ? Math.min(100, (Math.max(0, md.totalLogged + md.totalPlanned - md.totalCapacity) / md.totalCapacity) * 100) : 0;
+    // Expanded detail: student list + lessons
+    let expandedHTML = '';
+    if (isExpanded) {
+      const studentRowsHTML = students.length > 0 ? students.map(s => {
+        const ini = s.avatar_initials || s.name.substring(0, 2).toUpperCase();
+        const sTasks = classTasks.filter(t => t.assignee_id && t.assignee_id.includes(s.id));
+        return `
+          <div class="cls-detail-student">
+            <div class="cls-detail-avatar" style="background: ${_clsAvatarColor(s.name)}">${_clsEscape(ini)}</div>
+            <div class="cls-detail-student-info">
+              <span class="cls-detail-student-name">${_clsEscape(s.name)}</span>
+              <span class="cls-detail-student-meta">${_clsEscape(s.role) || 'Student'} &middot; ${sTasks.length} lesson${sTasks.length !== 1 ? 's' : ''}</span>
+            </div>
+            <button class="cls-detail-remove-btn" onclick="event.stopPropagation(); _clsRemoveStudentFromClass('${s.id}', '${project.id}')" title="Remove from class">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        `;
+      }).join('') : '<p class="cls-detail-empty">No students assigned yet.</p>';
+
+      const lessonRowsHTML = classTasks.slice(0, 8).map(t => {
+        const statusDot = t.status === 'done' ? 'cls-dot--done' : t.status === 'in_progress' ? 'cls-dot--active' : 'cls-dot--planned';
+        const isOverdue = t.end_date < todayISO && t.status !== 'done';
+        return `
+          <div class="cls-detail-lesson">
+            <span class="cls-dot ${statusDot}"></span>
+            <span class="cls-detail-lesson-name">${_clsEscape(t.title)}</span>
+            <span class="cls-detail-lesson-dates">${t.start_date} &rarr; ${t.end_date}</span>
+            ${isOverdue ? '<span class="cls-overdue-tag">OVERDUE</span>' : ''}
+          </div>
+        `;
+      }).join('') || '<p class="cls-detail-empty">No lessons yet.</p>';
+
+      expandedHTML = `
+        <div class="cls-card-expanded">
+          <div class="cls-detail-section">
+            <div class="cls-detail-section-header">
+              <h4>Students (${students.length})</h4>
+              <button class="cls-detail-add-btn" onclick="event.stopPropagation(); _clsOpenAddStudentsModal('${project.id}')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Students
+              </button>
+            </div>
+            ${studentRowsHTML}
+          </div>
+          <div class="cls-detail-section">
+            <div class="cls-detail-section-header">
+              <h4>Lessons (${classTasks.length})</h4>
+              <button class="cls-detail-add-btn" onclick="event.stopPropagation(); navigateTo('timeline');">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Plan Lesson
+              </button>
+            </div>
+            ${lessonRowsHTML}
+            ${classTasks.length > 8 ? `<p class="cls-detail-more">+ ${classTasks.length - 8} more lessons</p>` : ''}
+          </div>
+        </div>
+      `;
+    }
 
     return `
-      <tr>
-        <td class="ppl-name-cell">
-          <div class="ppl-avatar" style="background: ${_pplAvatarColor(m.name)}">${_pplEscape(initials)}</div>
-          <div class="ppl-name-info">
-            <span class="ppl-name">${_pplEscape(m.name)}</span>
-            <span class="ppl-role">${_pplEscape(m.role) || 'Student'}, ${capacity}h/wk</span>
-          </div>
-        </td>
-        ${weekCells}
-        <td class="ppl-notify-cell">
-          <button class="ppl-notify-btn" title="Notify ${_pplEscape(m.name)}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-          </button>
-        </td>
-        <td class="ppl-logged-cell"><span class="ppl-logged-value">${loggedDisplay}</span></td>
-        <td class="ppl-capacity-cell">
-          <div class="ppl-cap-bar-wrap">
-            <div class="ppl-cap-bar-bg">
-              <div class="ppl-cap-bar-fill" style="width: ${loggedTotalPct}%"></div>
-              ${overtimeTotalPct > 0 ? `<div class="ppl-cap-bar-overtime" style="width: ${overtimeTotalPct}%"></div>` : ''}
+      <div class="cls-card ${isExpanded ? 'cls-card--expanded' : ''}" onclick="_clsExpandClass('${project.id}')">
+        <div class="cls-card-color-bar" style="background: ${color};"></div>
+        <div class="cls-card-body">
+          <div class="cls-card-header">
+            <div class="cls-card-title-wrap">
+              <h3 class="cls-card-title">${_clsEscape(project.name)}</h3>
+              <span class="cls-card-subtitle">${classTasks.length} lesson${classTasks.length !== 1 ? 's' : ''} &middot; ${students.length} student${students.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="cls-card-actions">
+              <button class="cls-card-action-btn" onclick="event.stopPropagation(); _clsOpenAddStudentsModal('${project.id}')" title="Add students">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+              </button>
+              <button class="cls-card-action-btn" onclick="event.stopPropagation(); _clsExpandClass('${project.id}')" title="${isExpanded ? 'Collapse' : 'Expand'}">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="transform: rotate(${isExpanded ? '180' : '0'}deg); transition: transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
             </div>
           </div>
-        </td>
-        <td class="ppl-actions-cell">
-          <button class="ppl-more-btn" onclick="event.stopPropagation(); _pplShowMemberMenu('${m.id}', event)" title="More actions">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-          </button>
-        </td>
-      </tr>
+
+          <div class="cls-card-progress">
+            <div class="cls-card-progress-bar">
+              <div class="cls-card-progress-done" style="width: ${donePct}%;"></div>
+              <div class="cls-card-progress-active" style="width: ${activePct}%;"></div>
+            </div>
+            <div class="cls-card-progress-labels">
+              <span>${done} done</span>
+              <span>${active} active</span>
+              <span>${planned} planned</span>
+              ${overdue > 0 ? `<span class="cls-card-overdue">${overdue} overdue</span>` : ''}
+            </div>
+          </div>
+
+          <div class="cls-card-footer">
+            <div class="cls-card-avatars">${avatarHTML}${extraStudents}</div>
+            ${upcoming ? `<span class="cls-card-next">Next: ${_clsEscape(upcoming.title)}</span>` : ''}
+          </div>
+        </div>
+        ${expandedHTML}
+      </div>
+    `;
+  }).join('')}</div>`;
+}
+
+// ===== ADD STUDENTS TO CLASS MODAL =====
+
+function _clsOpenAddStudentsModal(classId) {
+  const project = (AppState.timelineProjects || []).find(p => p.id === classId);
+  if (!project) return;
+
+  const members = AppState.timelineTeamMembers || [];
+  const existingStudents = _clsGetClassStudents(classId);
+  const existingIds = new Set(existingStudents.map(s => s.id));
+
+  if (members.length === 0) {
+    const body = `
+      <div class="cls-detail-empty" style="text-align: center; padding: 20px 0;">
+        <p>No students exist yet. Add a student first.</p>
+      </div>
+    `;
+    const footer = `
+      <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeTimelineModal(); openCreateMemberModal(); AppState._classesReturnAfterModal = true;">New Student</button>
+    `;
+    _tlShowModal(_tlModalShell(`Add Students to ${_clsEscape(project.name)}`, body, footer));
+    return;
+  }
+
+  const studentsHTML = members.map(m => {
+    const ini = m.avatar_initials || m.name.substring(0, 2).toUpperCase();
+    const isAssigned = existingIds.has(m.id);
+    return `
+      <label class="cls-student-check ${isAssigned ? 'cls-student-check--assigned' : ''}" for="cls-chk-${m.id}">
+        <input type="checkbox" id="cls-chk-${m.id}" value="${m.id}" ${isAssigned ? 'checked' : ''} ${isAssigned ? 'disabled' : ''}>
+        <div class="cls-detail-avatar" style="background: ${_clsAvatarColor(m.name)}">${_clsEscape(ini)}</div>
+        <div class="cls-student-check-info">
+          <span class="cls-student-check-name">${_clsEscape(m.name)}</span>
+          <span class="cls-student-check-role">${_clsEscape(m.role) || 'Student'}${isAssigned ? ' &middot; Already assigned' : ''}</span>
+        </div>
+      </label>
     `;
   }).join('');
 
-  return `
-    <div class="ppl-table-wrap">
-      <table class="ppl-table">
-        <thead>
-          <tr>
-            <th class="ppl-th-name">Student</th>
-            ${weekHeaders}
-            <th class="ppl-th-icon"></th>
-            <th class="ppl-th-logged">Hours</th>
-            <th class="ppl-th-capacity">Load</th>
-            <th class="ppl-th-actions"></th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
+  const body = `
+    <div class="cls-add-students-list">${studentsHTML}</div>
+    <div style="margin-top: 12px; border-top: 1px solid var(--border-subtle); padding-top: 12px;">
+      <button class="cls-detail-add-btn" onclick="closeTimelineModal(); openCreateMemberModal(); AppState._classesReturnAfterModal = true;" style="width: 100%; justify-content: center;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create New Student
+      </button>
     </div>
   `;
+  const footer = `
+    <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="_clsSubmitAddStudents('${classId}')">Add Selected</button>
+  `;
+  _tlShowModal(_tlModalShell(`Add Students to ${_clsEscape(project.name)}`, body, footer));
 }
 
-// ===== Member Context Menu =====
+async function _clsSubmitAddStudents(classId) {
+  const checkboxes = document.querySelectorAll('.cls-add-students-list input[type=checkbox]:checked:not(:disabled)');
+  const selectedIds = Array.from(checkboxes).map(cb => cb.value);
 
-function _pplShowMemberMenu(memberId, event) {
-  _pplHideMemberMenu();
+  if (selectedIds.length === 0) {
+    showNotification('No new students selected', 'warning');
+    return;
+  }
+
+  // To "add a student to a class", we create a placeholder task in that class assigned to the student
+  const project = (AppState.timelineProjects || []).find(p => p.id === classId);
+  const todayISO = _clsDateToISO(new Date());
+  const endISO = _clsDateToISO(_clsAddDays(new Date(), 7));
+
+  let success = 0;
+  for (const studentId of selectedIds) {
+    try {
+      const resp = await fetch(`${AppState.authenticationUrl}/timeline-tasks?user_uuid=${AppState.userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${(AppState.timelineTeamMembers || []).find(m => m.id === studentId)?.name || 'Student'} - Enrolled`,
+          project_id: classId,
+          assignee_id: studentId,
+          start_date: todayISO,
+          end_date: endISO,
+          status: 'planned',
+          description: JSON.stringify({ notes: 'Auto-created enrolment record.', files: [] })
+        })
+      });
+      if (resp.ok) success++;
+    } catch (e) { /* continue */ }
+  }
+
+  closeTimelineModal();
+  if (success > 0) {
+    showNotification(`${success} student${success > 1 ? 's' : ''} added to ${_clsEscape(project?.name || 'class')}`, 'success');
+    await timelineRefreshData();
+    renderPeople();
+  } else {
+    showNotification('Failed to add students', 'error');
+  }
+}
+
+async function _clsRemoveStudentFromClass(studentId, classId) {
+  if (!confirm('Remove this student from the class? Their lessons in this class will be unassigned.')) return;
+
+  const tasks = (AppState.timelineTasks || []).filter(t => t.project_id === classId && t.assignee_id && t.assignee_id.includes(studentId));
+
+  for (const task of tasks) {
+    try {
+      const ids = task.assignee_id.split(',').map(s => s.trim()).filter(id => id !== studentId);
+      await fetch(`${AppState.authenticationUrl}/timeline-tasks/${task.id}?user_uuid=${AppState.userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignee_id: ids.join(',') || '' })
+      });
+    } catch (e) { /* continue */ }
+  }
+
+  showNotification('Student removed from class', 'success');
+  await timelineRefreshData();
+  renderPeople();
+}
+
+// ===== CLASS ROSTER VIEW =====
+
+function _clsBuildRoster() {
+  const projects = AppState.timelineProjects || [];
+  const members = AppState.timelineTeamMembers || [];
+  const tasks = AppState.timelineTasks || [];
+  const searchQ = (AppState.classesSearchQuery || '').toLowerCase();
+  const todayISO = _clsDateToISO(new Date());
+
+  if (projects.length === 0) {
+    return `<div class="cls-empty"><p>No classes found. Create a class in the Planner.</p></div>`;
+  }
+
+  const classesHTML = projects.map(project => {
+    const color = project.color || '#14b8a6';
+    const students = _clsGetClassStudents(project.id);
+    const filteredStudents = searchQ ? students.filter(s => s.name.toLowerCase().includes(searchQ)) : students;
+    const classTasks = tasks.filter(t => t.project_id === project.id);
+
+    const studentsHTML = filteredStudents.map(s => {
+      const ini = s.avatar_initials || s.name.substring(0, 2).toUpperCase();
+      const sTasks = classTasks.filter(t => t.assignee_id && t.assignee_id.includes(s.id));
+      const sDone = sTasks.filter(t => t.status === 'done').length;
+      const sOverdue = sTasks.filter(t => t.end_date < todayISO && t.status !== 'done').length;
+
+      const attKeys = Object.keys(AppState._attendanceData || {}).filter(k => k.startsWith(s.id + '_'));
+      const attTotal = attKeys.length;
+      const attPresent = attKeys.filter(k => AppState._attendanceData[k] === 'present').length;
+      const attRate = attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : null;
+
+      return `
+        <div class="cls-roster-student-card">
+          <div class="cls-roster-student-top">
+            <div class="cls-detail-avatar" style="background: ${_clsAvatarColor(s.name)}">${_clsEscape(ini)}</div>
+            <div class="cls-roster-student-info">
+              <span class="cls-roster-student-name">${_clsEscape(s.name)}</span>
+              <span class="cls-roster-student-role">${_clsEscape(s.role) || 'Student'}</span>
+            </div>
+            <button class="cls-detail-remove-btn" onclick="_clsShowStudentMenu('${s.id}', event)" title="Actions">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+          </div>
+          <div class="cls-roster-student-stats">
+            <div class="cls-roster-mini-stat"><span class="cls-roster-mini-val">${sTasks.length}</span> Lessons</div>
+            <div class="cls-roster-mini-stat"><span class="cls-roster-mini-val">${sDone}</span> Done</div>
+            ${sOverdue > 0 ? `<div class="cls-roster-mini-stat cls-roster-mini-stat--alert"><span class="cls-roster-mini-val">${sOverdue}</span> Overdue</div>` : ''}
+            ${attRate !== null ? `<div class="cls-roster-mini-stat"><span class="cls-roster-mini-val">${attRate}%</span> Attend.</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('') || '<p class="cls-detail-empty" style="padding: 14px;">No students assigned to this class.</p>';
+
+    return `
+      <div class="cls-roster-class-section">
+        <div class="cls-roster-class-header">
+          <div class="cls-roster-class-color" style="background: ${color}"></div>
+          <h3 class="cls-roster-class-name">${_clsEscape(project.name)}</h3>
+          <span class="cls-roster-class-count">${filteredStudents.length} student${filteredStudents.length !== 1 ? 's' : ''}</span>
+          <button class="cls-detail-add-btn" onclick="_clsOpenAddStudentsModal('${project.id}')" style="margin-left: auto;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Students
+          </button>
+        </div>
+        <div class="cls-roster-students-grid">${studentsHTML}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Unassigned students
+  const assignedIds = _clsGetAllAssignedStudents();
+  const unassigned = members.filter(m => !assignedIds.has(m.id));
+  const unassignedSearch = searchQ ? unassigned.filter(s => s.name.toLowerCase().includes(searchQ)) : unassigned;
+
+  let unassignedHTML = '';
+  if (unassignedSearch.length > 0) {
+    const uCards = unassignedSearch.map(s => {
+      const ini = s.avatar_initials || s.name.substring(0, 2).toUpperCase();
+      return `
+        <div class="cls-roster-student-card cls-roster-student-card--unassigned">
+          <div class="cls-roster-student-top">
+            <div class="cls-detail-avatar" style="background: ${_clsAvatarColor(s.name)}">${_clsEscape(ini)}</div>
+            <div class="cls-roster-student-info">
+              <span class="cls-roster-student-name">${_clsEscape(s.name)}</span>
+              <span class="cls-roster-student-role">${_clsEscape(s.role) || 'Student'}</span>
+            </div>
+            <button class="cls-detail-remove-btn" onclick="_clsShowStudentMenu('${s.id}', event)" title="Actions">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+          </div>
+          <div class="cls-roster-student-stats">
+            <div class="cls-roster-mini-stat cls-roster-mini-stat--muted">Not assigned to any class</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    unassignedHTML = `
+      <div class="cls-roster-class-section cls-roster-class-section--unassigned">
+        <div class="cls-roster-class-header">
+          <div class="cls-roster-class-color" style="background: #6b7280"></div>
+          <h3 class="cls-roster-class-name">Unassigned Students</h3>
+          <span class="cls-roster-class-count">${unassignedSearch.length} student${unassignedSearch.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="cls-roster-students-grid">${uCards}</div>
+      </div>
+    `;
+  }
+
+  return classesHTML + unassignedHTML;
+}
+
+// ===== STUDENT CONTEXT MENU =====
+
+function _clsShowStudentMenu(memberId, event) {
+  event.stopPropagation();
+  _clsHideStudentMenu();
   const member = (AppState.timelineTeamMembers || []).find(m => m.id === memberId);
   if (!member) return;
 
   const menu = document.createElement('div');
-  menu.id = 'ppl-context-menu';
-  menu.className = 'ppl-context-menu';
+  menu.id = 'cls-context-menu';
+  menu.className = 'cls-context-menu';
   menu.innerHTML = `
-    <button onclick="_pplEditMember('${memberId}')">
+    <button onclick="_clsEditStudent('${memberId}')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Edit Student
     </button>
-    <button onclick="_pplViewMemberTasks('${memberId}')">
+    <button onclick="_clsViewStudentLessons('${memberId}')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-      View Lessons
+      View in Planner
     </button>
-    <button onclick="_pplViewStudentReport('${memberId}')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      Student Report
-    </button>
-    <button class="ppl-menu-danger" onclick="_pplDeleteMember('${memberId}')">
+    <button class="cls-menu-danger" onclick="_clsDeleteStudent('${memberId}')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
       Remove Student
     </button>
@@ -558,166 +580,46 @@ function _pplShowMemberMenu(memberId, event) {
   menu.style.left = `${Math.min(rect.left, window.innerWidth - 200)}px`;
 
   document.body.appendChild(menu);
-  setTimeout(() => { document.addEventListener('click', _pplHideMemberMenu, { once: true }); }, 0);
+  setTimeout(() => { document.addEventListener('click', _clsHideStudentMenu, { once: true }); }, 0);
 }
 
-function _pplHideMemberMenu() {
-  const existing = document.getElementById('ppl-context-menu');
+function _clsHideStudentMenu() {
+  const existing = document.getElementById('cls-context-menu');
   if (existing) existing.remove();
 }
 
-function _pplEditMember(memberId) {
-  _pplHideMemberMenu();
-  if (typeof openEditMemberModal === 'function') {
-    openEditMemberModal(memberId);
-  } else {
-    _pplShowEditMemberModal(memberId);
-  }
-}
-
-function _pplViewMemberTasks(memberId) {
-  _pplHideMemberMenu();
-  AppState.timelineFilterPerson = memberId;
-  navigateTo('timeline');
-}
-
-// ===== Student Report Modal =====
-
-function _pplViewStudentReport(memberId) {
-  _pplHideMemberMenu();
-  const member = (AppState.timelineTeamMembers || []).find(m => m.id === memberId);
-  if (!member) return;
-
-  const tasks = (AppState.timelineTasks || []).filter(t => t.assignee_id === memberId);
-  const projects = AppState.timelineProjects || [];
-  const activeTasks = tasks.filter(t => t.status === 'in_progress');
-  const doneTasks = tasks.filter(t => t.status === 'done');
-  const todayISO = _pplDateToISO(new Date());
-  const overdueTasks = tasks.filter(t => t.end_date < todayISO && t.status !== 'done');
-
-  // Attendance summary
-  const attendanceKeys = Object.keys(AppState._attendanceData || {}).filter(k => k.startsWith(memberId + '_'));
-  const totalAttendance = attendanceKeys.length;
-  const presentDays = attendanceKeys.filter(k => AppState._attendanceData[k] === 'present').length;
-  const lateDays = attendanceKeys.filter(k => AppState._attendanceData[k] === 'late').length;
-  const absentDays = attendanceKeys.filter(k => AppState._attendanceData[k] === 'absent').length;
-  const attendanceRate = totalAttendance > 0 ? Math.round((presentDays / totalAttendance) * 100) : 'N/A';
-
-  const taskListHTML = tasks.slice(0, 10).map(task => {
-    const project = projects.find(p => p.id === task.project_id);
-    const statusIcon = task.status === 'done' ? '<span style="color: var(--success);">\u2713</span>'
-      : task.status === 'in_progress' ? '<span style="color: var(--info);">\u25B6</span>'
-      : '<span style="color: var(--text-muted);">\u25CB</span>';
-    const isOverdue = task.end_date < todayISO && task.status !== 'done';
-    return `
-      <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-subtle);">
-        ${statusIcon}
-        <div style="flex: 1; min-width: 0;">
-          <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary);">${_pplEscape(task.title)}</div>
-          <div style="font-size: 0.6875rem; color: var(--text-muted);">${project ? _pplEscape(project.name) : ''} &middot; ${task.start_date} \u2192 ${task.end_date}</div>
-        </div>
-        ${isOverdue ? '<span style="font-size: 0.625rem; padding: 2px 8px; background: var(--error-soft); color: var(--error); border-radius: 100px; font-weight: 600;">OVERDUE</span>' : ''}
-      </div>
-    `;
-  }).join('');
-
-  const body = `
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-      <div style="background: var(--accent-primary-soft); border-radius: 10px; padding: 14px; text-align: center;">
-        <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent-primary);">${activeTasks.length}</div>
-        <div style="font-size: 0.6875rem; color: var(--text-muted); font-weight: 600;">Active</div>
-      </div>
-      <div style="background: var(--success-soft); border-radius: 10px; padding: 14px; text-align: center;">
-        <div style="font-size: 1.5rem; font-weight: 800; color: var(--success);">${doneTasks.length}</div>
-        <div style="font-size: 0.6875rem; color: var(--text-muted); font-weight: 600;">Done</div>
-      </div>
-      <div style="background: var(--info-soft); border-radius: 10px; padding: 14px; text-align: center;">
-        <div style="font-size: 1.5rem; font-weight: 800; color: var(--info);">${typeof attendanceRate === 'number' ? attendanceRate + '%' : attendanceRate}</div>
-        <div style="font-size: 0.6875rem; color: var(--text-muted); font-weight: 600;">Attendance</div>
-      </div>
-      <div style="background: ${overdueTasks.length > 0 ? 'var(--error-soft)' : 'var(--warning-soft)'}; border-radius: 10px; padding: 14px; text-align: center;">
-        <div style="font-size: 1.5rem; font-weight: 800; color: ${overdueTasks.length > 0 ? 'var(--error)' : 'var(--warning)'};">${overdueTasks.length}</div>
-        <div style="font-size: 0.6875rem; color: var(--text-muted); font-weight: 600;">Overdue</div>
-      </div>
-    </div>
-    ${totalAttendance > 0 ? `
-    <div style="margin-bottom: 16px;">
-      <h4 style="font-size: 0.8125rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">Attendance Breakdown</h4>
-      <div style="display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-secondary);">
-        <span>\u2713 Present: <strong>${presentDays}</strong></span>
-        <span>\u23F0 Late: <strong>${lateDays}</strong></span>
-        <span>\u2717 Absent: <strong>${absentDays}</strong></span>
-      </div>
-    </div>
-    ` : ''}
-    <div>
-      <h4 style="font-size: 0.8125rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">Assigned Lessons</h4>
-      ${taskListHTML || '<p style="color: var(--text-muted); font-size: 0.8125rem;">No lessons assigned.</p>'}
-    </div>
-  `;
-
-  const footer = `
-    <button class="btn btn-secondary" onclick="closeTimelineModal()">Close</button>
-    <button class="btn btn-primary" onclick="closeTimelineModal(); _pplViewMemberTasks('${memberId}')">View in Planner</button>
-  `;
-
-  _tlShowModal(_tlModalShell(`Report: ${_pplEscape(member.name)}`, body, footer));
-}
-
-async function _pplDeleteMember(memberId) {
-  _pplHideMemberMenu();
-  if (!confirm('Remove this student?')) return;
-
-  try {
-    const resp = await fetch(`${AppState.authenticationUrl}/team-members/${memberId}?user_uuid=${AppState.userId}`, { method: 'DELETE' });
-    if (!resp.ok) throw new Error('Failed to delete team member');
-    showNotification('Student removed', 'success');
-    await timelineRefreshData();
-    renderPeople();
-  } catch (e) {
-    showNotification('Error: ' + e.message, 'error');
-  }
-}
-
-// ===== Edit Student Modal =====
-
-function _pplShowEditMemberModal(memberId) {
+function _clsEditStudent(memberId) {
+  _clsHideStudentMenu();
   const member = (AppState.timelineTeamMembers || []).find(m => m.id === memberId);
   if (!member) return;
 
   const body = `
     <div class="form-group">
       <label class="form-label">Full Name</label>
-      <input type="text" id="ppl-edit-name" class="form-input" value="${_pplEscape(member.name)}">
+      <input type="text" id="cls-edit-name" class="form-input" value="${_clsEscape(member.name)}">
     </div>
     <div class="form-group">
-      <label class="form-label">Year Group / Class</label>
-      <input type="text" id="ppl-edit-role" class="form-input" value="${_pplEscape(member.role)}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Weekly Hours</label>
-      <input type="number" id="ppl-edit-capacity" class="form-input" value="${member.weekly_capacity_hours}" min="1" max="80">
+      <label class="form-label">Year Group / Role</label>
+      <input type="text" id="cls-edit-role" class="form-input" value="${_clsEscape(member.role)}">
     </div>
   `;
   const footer = `
     <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button class="btn btn-primary" onclick="_pplSubmitEditMember('${member.id}')">Save</button>
+    <button class="btn btn-primary" onclick="_clsSubmitEditStudent('${member.id}')">Save</button>
   `;
   _tlShowModal(_tlModalShell('Edit Student', body, footer));
 }
 
-async function _pplSubmitEditMember(memberId) {
-  const name = document.getElementById('ppl-edit-name')?.value?.trim();
-  const role = document.getElementById('ppl-edit-role')?.value?.trim() || '';
-  const capacity = parseInt(document.getElementById('ppl-edit-capacity')?.value) || 40;
-
+async function _clsSubmitEditStudent(memberId) {
+  const name = document.getElementById('cls-edit-name')?.value?.trim();
+  const role = document.getElementById('cls-edit-role')?.value?.trim() || '';
   if (!name) { showNotification('Please enter a name', 'warning'); return; }
 
   try {
     const resp = await fetch(`${AppState.authenticationUrl}/team-members/${memberId}?user_uuid=${AppState.userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, role, weekly_capacity_hours: capacity })
+      body: JSON.stringify({ name, role })
     });
     if (!resp.ok) throw new Error('Failed to update');
     closeTimelineModal();
@@ -729,40 +631,75 @@ async function _pplSubmitEditMember(memberId) {
   }
 }
 
+function _clsViewStudentLessons(memberId) {
+  _clsHideStudentMenu();
+  AppState.timelineFilterPerson = memberId;
+  navigateTo('timeline');
+}
+
+async function _clsDeleteStudent(memberId) {
+  _clsHideStudentMenu();
+  if (!confirm('Remove this student? This cannot be undone.')) return;
+
+  try {
+    const resp = await fetch(`${AppState.authenticationUrl}/team-members/${memberId}?user_uuid=${AppState.userId}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Failed to delete');
+    showNotification('Student removed', 'success');
+    await timelineRefreshData();
+    renderPeople();
+  } catch (e) {
+    showNotification('Error: ' + e.message, 'error');
+  }
+}
+
 // ===== ATTENDANCE VIEW =====
 
-function _pplBuildAttendance() {
+function _clsBuildAttendance() {
+  const projects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
-  const searchQ = (AppState.peopleSearchQuery || '').toLowerCase();
-  const filtered = searchQ ? members.filter(m => m.name.toLowerCase().includes(searchQ)) : members;
+  const searchQ = (AppState.classesSearchQuery || '').toLowerCase();
+  const classFilter = AppState._attendanceClassFilter || '';
+
+  let displayMembers = members;
+  if (classFilter) {
+    displayMembers = _clsGetClassStudents(classFilter);
+  }
+  if (searchQ) displayMembers = displayMembers.filter(m => m.name.toLowerCase().includes(searchQ));
 
   if (members.length === 0) {
-    return `<div class="ppl-table-empty"><p>No students added yet. Add students to track attendance.</p></div>`;
+    return `<div class="cls-empty"><p>No students added yet.</p></div>`;
   }
 
   const offset = AppState._attendanceWeekOffset || 0;
   const now = new Date();
-  const baseStart = _pplWeekStart(now);
-  const weekStart = _pplAddDays(baseStart, offset * 7);
+  const baseStart = _clsWeekStart(now);
+  const weekStart = _clsAddDays(baseStart, offset * 7);
   const days = [];
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const todayISO = _pplDateToISO(new Date());
+  const todayISO = _clsDateToISO(new Date());
 
   for (let i = 0; i < 5; i++) {
-    const d = _pplAddDays(weekStart, i);
+    const d = _clsAddDays(weekStart, i);
     days.push({
       date: d,
-      iso: _pplDateToISO(d),
+      iso: _clsDateToISO(d),
       day: dayNames[i],
       dayNum: d.getDate(),
       month: months[d.getMonth()],
-      isToday: _pplDateToISO(d) === todayISO,
-      isFuture: _pplDateToISO(d) > todayISO
+      isToday: _clsDateToISO(d) === todayISO,
+      isFuture: _clsDateToISO(d) > todayISO
     });
   }
 
-  const weekLabel = `${months[weekStart.getMonth()]} ${weekStart.getDate()} \u2013 ${months[_pplAddDays(weekStart, 4).getMonth()]} ${_pplAddDays(weekStart, 4).getDate()}`;
+  const weekLabel = `${months[weekStart.getMonth()]} ${weekStart.getDate()} \u2013 ${months[_clsAddDays(weekStart, 4).getMonth()]} ${_clsAddDays(weekStart, 4).getDate()}`;
+
+  const classFilterHTML = `
+    <select class="cls-att-class-filter" onchange="AppState._attendanceClassFilter = this.value; renderPeople();">
+      <option value="">All Students</option>
+      ${projects.map(p => `<option value="${p.id}" ${classFilter === p.id ? 'selected' : ''}>${_clsEscape(p.name)}</option>`).join('')}
+    </select>
+  `;
 
   const dayHeaders = days.map(d => `
     <th class="att-day-header ${d.isToday ? 'att-day-today' : ''} ${d.isFuture ? 'att-day-future' : ''}">
@@ -773,7 +710,7 @@ function _pplBuildAttendance() {
 
   const dayStatsHTML = days.map(d => {
     let present = 0, total = 0;
-    for (const m of filtered) {
+    for (const m of displayMembers) {
       const key = `${m.id}_${d.iso}`;
       const val = AppState._attendanceData[key];
       if (val) {
@@ -787,7 +724,7 @@ function _pplBuildAttendance() {
     </td>`;
   }).join('');
 
-  const rows = filtered.map(m => {
+  const rows = displayMembers.map(m => {
     const initials = m.avatar_initials || '??';
     const cells = days.map(d => {
       const key = `${m.id}_${d.iso}`;
@@ -799,9 +736,9 @@ function _pplBuildAttendance() {
 
       return `<td class="${d.isToday ? 'att-cell-today' : ''} ${d.isFuture ? 'att-cell-future' : ''}">
         <div class="att-btn-group">
-          <button class="att-mark-btn ${presentActive}" onclick="_pplMarkAttendance('${m.id}', '${d.iso}', 'present')" title="Present">\u2713</button>
-          <button class="att-mark-btn ${lateActive}" onclick="_pplMarkAttendance('${m.id}', '${d.iso}', 'late')" title="Late">\u23F0</button>
-          <button class="att-mark-btn ${absentActive}" onclick="_pplMarkAttendance('${m.id}', '${d.iso}', 'absent')" title="Absent">\u2717</button>
+          <button class="att-mark-btn ${presentActive}" onclick="_clsMarkAttendance('${m.id}', '${d.iso}', 'present')" title="Present">\u2713</button>
+          <button class="att-mark-btn ${lateActive}" onclick="_clsMarkAttendance('${m.id}', '${d.iso}', 'late')" title="Late">\u23F0</button>
+          <button class="att-mark-btn ${absentActive}" onclick="_clsMarkAttendance('${m.id}', '${d.iso}', 'absent')" title="Absent">\u2717</button>
         </div>
       </td>`;
     }).join('');
@@ -812,12 +749,9 @@ function _pplBuildAttendance() {
     const memberRate = memberTotal > 0 ? Math.round((memberPresent / memberTotal) * 100) : null;
 
     return `<tr>
-      <td class="ppl-name-cell">
-        <div class="ppl-avatar ppl-avatar--sm" style="background: ${_pplAvatarColor(m.name)}">${_pplEscape(initials)}</div>
-        <div class="ppl-name-info">
-          <span class="ppl-name">${_pplEscape(m.name)}</span>
-          <span class="ppl-role">${_pplEscape(m.role) || 'Student'}</span>
-        </div>
+      <td class="cls-att-name-cell">
+        <div class="cls-detail-avatar" style="background: ${_clsAvatarColor(m.name)}">${_clsEscape(initials)}</div>
+        <span class="cls-att-student-name">${_clsEscape(m.name)}</span>
       </td>
       ${cells}
       <td class="att-rate-cell">
@@ -830,29 +764,32 @@ function _pplBuildAttendance() {
 
   const quickMarkHTML = days.map(d => `
     <td class="${d.isToday ? 'att-cell-today' : ''}">
-      <button class="att-mark-all-btn" onclick="_pplMarkAllAttendance('${d.iso}', 'present')" title="Mark all present">\u2713 All</button>
+      <button class="att-mark-all-btn" onclick="_clsMarkAllAttendance('${d.iso}', 'present')" title="Mark all present">\u2713 All</button>
     </td>
   `).join('');
 
   return `
     <div class="att-controls">
-      <button class="tl-nav-btn" onclick="_pplAttendanceNav(-1)" title="Previous week">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-      <span class="att-week-label">${weekLabel}</span>
-      <button class="tl-nav-btn" onclick="_pplAttendanceNav(1)" title="Next week">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </button>
-      <button class="tl-today-btn" onclick="AppState._attendanceWeekOffset = 0; renderPeople();">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
-        This Week
-      </button>
+      ${classFilterHTML}
+      <div class="att-nav-group">
+        <button class="tl-nav-btn" onclick="_clsAttendanceNav(-1)" title="Previous week">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="att-week-label">${weekLabel}</span>
+        <button class="tl-nav-btn" onclick="_clsAttendanceNav(1)" title="Next week">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="tl-today-btn" onclick="AppState._attendanceWeekOffset = 0; renderPeople();">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
+          This Week
+        </button>
+      </div>
     </div>
-    <div class="ppl-table-wrap">
-      <table class="ppl-table att-table">
+    <div class="cls-table-wrap">
+      <table class="cls-att-table">
         <thead>
           <tr>
-            <th class="ppl-th-name">Student</th>
+            <th class="cls-att-th-name">Student</th>
             ${dayHeaders}
             <th class="att-th-rate">Rate</th>
           </tr>
@@ -875,7 +812,7 @@ function _pplBuildAttendance() {
   `;
 }
 
-function _pplMarkAttendance(memberId, dateISO, status) {
+function _clsMarkAttendance(memberId, dateISO, status) {
   const key = `${memberId}_${dateISO}`;
   if (AppState._attendanceData[key] === status) {
     delete AppState._attendanceData[key];
@@ -885,7 +822,7 @@ function _pplMarkAttendance(memberId, dateISO, status) {
   renderPeople();
 }
 
-function _pplMarkAllAttendance(dateISO, status) {
+function _clsMarkAllAttendance(dateISO, status) {
   const members = AppState.timelineTeamMembers || [];
   for (const m of members) {
     AppState._attendanceData[`${m.id}_${dateISO}`] = status;
@@ -893,47 +830,47 @@ function _pplMarkAllAttendance(dateISO, status) {
   renderPeople();
 }
 
-function _pplAttendanceNav(direction) {
+function _clsAttendanceNav(direction) {
   AppState._attendanceWeekOffset = (AppState._attendanceWeekOffset || 0) + direction;
   renderPeople();
 }
 
 // ===== GRADE TRACKER VIEW =====
 
-function _pplBuildGrades() {
+function _clsBuildGrades() {
   const members = AppState.timelineTeamMembers || [];
-  const searchQ = (AppState.peopleSearchQuery || '').toLowerCase();
+  const searchQ = (AppState.classesSearchQuery || '').toLowerCase();
   const filtered = searchQ ? members.filter(m => m.name.toLowerCase().includes(searchQ)) : members;
   const assignments = AppState._gradeAssignments || [];
 
   if (members.length === 0) {
-    return `<div class="ppl-table-empty"><p>No students added yet. Add students to track grades.</p></div>`;
+    return `<div class="cls-empty"><p>No students added yet.</p></div>`;
   }
 
   const addAssignmentBtn = `
-    <button class="tl-action-btn tl-action-btn--secondary" onclick="_pplAddAssignment()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <button class="cls-detail-add-btn" onclick="_clsAddAssignment()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Assignment
     </button>
   `;
 
   if (assignments.length === 0) {
     return `
-      <div class="ppl-table-empty" style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
+      <div class="cls-empty" style="gap: 16px;">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.2" stroke-linecap="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
-        <p>No assignments created yet. Create one to start tracking grades.</p>
+        <p>No assignments created yet.</p>
         ${addAssignmentBtn}
       </div>
     `;
   }
 
   const assignmentHeaders = assignments.map(a => `
-    <th class="grade-assign-header" title="${_pplEscape(a.name)}">
-      <div class="grade-assign-name">${_pplEscape(a.name)}</div>
+    <th class="grade-assign-header" title="${_clsEscape(a.name)}">
+      <div class="grade-assign-name">${_clsEscape(a.name)}</div>
       <div class="grade-assign-max">/ ${a.maxScore}</div>
-      <button class="grade-remove-btn" onclick="event.stopPropagation(); _pplRemoveAssignment('${a.id}')" title="Remove">&times;</button>
+      <button class="grade-remove-btn" onclick="event.stopPropagation(); _clsRemoveAssignment('${a.id}')" title="Remove">&times;</button>
     </th>
   `).join('');
 
@@ -950,13 +887,12 @@ function _pplBuildGrades() {
         <div class="grade-input-wrap ${gradeClass}">
           <input type="number" class="grade-input" value="${hasScore ? score : ''}"
             min="0" max="${a.maxScore}" placeholder="\u2014"
-            onchange="_pplSetGrade('${m.id}', '${a.id}', this.value, ${a.maxScore})">
+            onchange="_clsSetGrade('${m.id}', '${a.id}', this.value, ${a.maxScore})">
           ${pct !== null ? `<span class="grade-pct">${pct}%</span>` : ''}
         </div>
       </td>`;
     }).join('');
 
-    // Student average
     const studentScores = assignments.map(a => {
       const key = `${m.id}_${a.id}`;
       const score = AppState._gradesData[key];
@@ -966,16 +902,12 @@ function _pplBuildGrades() {
     const avgPct = studentScores.length > 0
       ? Math.round(studentScores.reduce((sum, s) => sum + (s.score / s.max) * 100, 0) / studentScores.length)
       : null;
-
     const avgClass = avgPct !== null ? (avgPct >= 80 ? 'grade-high' : avgPct >= 60 ? 'grade-mid' : avgPct >= 40 ? 'grade-low' : 'grade-fail') : '';
 
     return `<tr>
-      <td class="ppl-name-cell">
-        <div class="ppl-avatar ppl-avatar--sm" style="background: ${_pplAvatarColor(m.name)}">${_pplEscape(initials)}</div>
-        <div class="ppl-name-info">
-          <span class="ppl-name">${_pplEscape(m.name)}</span>
-          <span class="ppl-role">${_pplEscape(m.role) || 'Student'}</span>
-        </div>
+      <td class="cls-att-name-cell">
+        <div class="cls-detail-avatar" style="background: ${_clsAvatarColor(m.name)}">${_clsEscape(initials)}</div>
+        <span class="cls-att-student-name">${_clsEscape(m.name)}</span>
       </td>
       ${cells}
       <td class="grade-avg-cell">
@@ -984,7 +916,6 @@ function _pplBuildGrades() {
     </tr>`;
   }).join('');
 
-  // Class averages row
   const classAvgsHTML = assignments.map(a => {
     const scores = filtered.map(m => {
       const key = `${m.id}_${a.id}`;
@@ -999,17 +930,17 @@ function _pplBuildGrades() {
   }).join('');
 
   return `
-    <div class="grade-toolbar">
+    <div class="cls-grade-toolbar">
       ${addAssignmentBtn}
       <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: auto;">${assignments.length} assignment${assignments.length !== 1 ? 's' : ''}</span>
     </div>
-    <div class="ppl-table-wrap">
-      <table class="ppl-table grade-table">
+    <div class="cls-table-wrap">
+      <table class="cls-att-table grade-table">
         <thead>
           <tr>
-            <th class="ppl-th-name">Student</th>
+            <th class="cls-att-th-name">Student</th>
             ${assignmentHeaders}
-            <th class="grade-th-avg">Average</th>
+            <th class="grade-th-avg">Avg</th>
           </tr>
         </thead>
         <tbody>
@@ -1025,7 +956,7 @@ function _pplBuildGrades() {
   `;
 }
 
-function _pplSetGrade(memberId, assignmentId, value, maxScore) {
+function _clsSetGrade(memberId, assignmentId, value, maxScore) {
   const key = `${memberId}_${assignmentId}`;
   if (value === '' || value === null || value === undefined) {
     delete AppState._gradesData[key];
@@ -1035,7 +966,7 @@ function _pplSetGrade(memberId, assignmentId, value, maxScore) {
   renderPeople();
 }
 
-function _pplAddAssignment() {
+function _clsAddAssignment() {
   const body = `
     <div class="form-group">
       <label class="form-label">Assignment Name</label>
@@ -1048,24 +979,24 @@ function _pplAddAssignment() {
   `;
   const footer = `
     <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button class="btn btn-primary" onclick="_pplSubmitAssignment()">Add Assignment</button>
+    <button class="btn btn-primary" onclick="_clsSubmitAssignment()">Add Assignment</button>
   `;
   _tlShowModal(_tlModalShell('New Assignment', body, footer));
 }
 
-function _pplSubmitAssignment() {
+function _clsSubmitAssignment() {
   const name = document.getElementById('grade-new-name')?.value?.trim();
   const maxScore = parseInt(document.getElementById('grade-new-max')?.value) || 100;
   if (!name) { showNotification('Please enter an assignment name', 'warning'); return; }
 
   const id = 'assign_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  AppState._gradeAssignments.push({ id, name, maxScore, date: _pplDateToISO(new Date()) });
+  AppState._gradeAssignments.push({ id, name, maxScore, date: _clsDateToISO(new Date()) });
   closeTimelineModal();
   showNotification('Assignment added', 'success');
   renderPeople();
 }
 
-function _pplRemoveAssignment(assignmentId) {
+function _clsRemoveAssignment(assignmentId) {
   if (!confirm('Remove this assignment and all its grades?')) return;
   AppState._gradeAssignments = AppState._gradeAssignments.filter(a => a.id !== assignmentId);
   const keysToDelete = Object.keys(AppState._gradesData).filter(k => k.endsWith('_' + assignmentId));
@@ -1074,271 +1005,70 @@ function _pplRemoveAssignment(assignmentId) {
   renderPeople();
 }
 
-// ===== Class Roster View =====
+// ===== TOOLBAR =====
 
-function _pplBuildRoster() {
-  const members = AppState.timelineTeamMembers || [];
-  const searchQ = (AppState.peopleSearchQuery || '').toLowerCase();
-  const filtered = searchQ ? members.filter(m => m.name.toLowerCase().includes(searchQ)) : members;
+function _clsBuildToolbar() {
+  const tab = AppState.classesTab || 'overview';
 
-  if (filtered.length === 0) {
-    return `<div class="ppl-table-empty"><p>No students found.</p></div>`;
-  }
-
-  // Group by role
-  const groups = {};
-  filtered.forEach(m => {
-    const group = m.role || 'Unassigned';
-    if (!groups[group]) groups[group] = [];
-    groups[group].push(m);
-  });
-
-  const groupsHTML = Object.entries(groups).map(([groupName, groupMembers]) => {
-    const cardsHTML = groupMembers.map(m => {
-      const initials = m.avatar_initials || '??';
-      const tasks = (AppState.timelineTasks || []).filter(t => t.assignee_id === m.id);
-      const activeTasks = tasks.filter(t => t.status !== 'done').length;
-      const doneTasks = tasks.filter(t => t.status === 'done').length;
-      const todayISO = _pplDateToISO(new Date());
-      const overdue = tasks.filter(t => t.end_date < todayISO && t.status !== 'done').length;
-
-      const attKeys = Object.keys(AppState._attendanceData || {}).filter(k => k.startsWith(m.id + '_'));
-      const attTotal = attKeys.length;
-      const attPresent = attKeys.filter(k => AppState._attendanceData[k] === 'present').length;
-      const attRate = attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : null;
-
-      return `
-        <div class="cls-roster-card" onclick="_pplViewStudentReport('${m.id}')">
-          <div class="cls-roster-card-top">
-            <div class="ppl-avatar ppl-avatar--lg" style="background: ${_pplAvatarColor(m.name)}">${_pplEscape(initials)}</div>
-            <button class="ppl-more-btn" onclick="event.stopPropagation(); _pplShowMemberMenu('${m.id}', event)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-            </button>
-          </div>
-          <div class="cls-roster-info">
-            <span class="cls-roster-name">${_pplEscape(m.name)}</span>
-            <span class="cls-roster-role">${_pplEscape(m.role) || 'Student'}</span>
-          </div>
-          <div class="cls-roster-stats">
-            <div class="cls-roster-stat">
-              <span class="cls-roster-stat-val">${activeTasks}</span>
-              <span class="cls-roster-stat-label">Active</span>
-            </div>
-            <div class="cls-roster-stat">
-              <span class="cls-roster-stat-val">${doneTasks}</span>
-              <span class="cls-roster-stat-label">Done</span>
-            </div>
-            <div class="cls-roster-stat">
-              <span class="cls-roster-stat-val ${overdue > 0 ? 'cls-roster-overdue' : ''}">${overdue}</span>
-              <span class="cls-roster-stat-label">Overdue</span>
-            </div>
-            ${attRate !== null ? `
-            <div class="cls-roster-stat">
-              <span class="cls-roster-stat-val">${attRate}%</span>
-              <span class="cls-roster-stat-label">Attend.</span>
-            </div>` : ''}
-          </div>
-          <div class="cls-roster-capacity">
-            <div class="cls-roster-cap-label">${m.weekly_capacity_hours || 40}h/wk capacity</div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    return `
-      <div class="cls-roster-group">
-        <div class="cls-roster-group-header">
-          <span class="cls-roster-group-name">${_pplEscape(groupName)}</span>
-          <span class="cls-roster-group-count">${groupMembers.length} student${groupMembers.length !== 1 ? 's' : ''}</span>
-        </div>
-        <div class="cls-roster-grid">${cardsHTML}</div>
-      </div>
-    `;
-  }).join('');
-
-  return groupsHTML;
-}
-
-// ===== Activities View =====
-
-function _pplBuildActivities() {
-  const tasks = AppState.timelineTasks || [];
-  const members = AppState.timelineTeamMembers || [];
-  const projects = AppState.timelineProjects || [];
-
-  const sorted = [...tasks].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 30);
-
-  if (sorted.length === 0) {
-    return `<div class="ppl-table-empty"><p>No recent activity.</p></div>`;
-  }
-
-  const items = sorted.map(task => {
-    const member = members.find(m => m.id === task.assignee_id);
-    const project = projects.find(p => p.id === task.project_id);
-    const memberName = member ? _pplEscape(member.name) : 'Unknown';
-    const initials = member ? (member.avatar_initials || '??') : '??';
-    const projectName = project ? _pplEscape(project.name) : 'Unknown';
-    const color = project?.color || '#14b8a6';
-
-    const statusIcon = task.status === 'done' ? '\u2705'
-      : task.status === 'in_progress' ? '\u{1F6A7}' : '\u{1F4CB}';
-
-    const ago = _pplTimeAgo(task.created_at);
-
-    return `
-      <div class="ppl-activity-item">
-        <div class="ppl-avatar ppl-avatar--sm" style="background: ${_pplAvatarColor(memberName)}">${_pplEscape(initials)}</div>
-        <div class="ppl-activity-content">
-          <span class="ppl-activity-text">
-            <strong>${memberName}</strong> assigned to <span style="color: ${color}; font-weight: 600;">${projectName}</span>
-            &mdash; ${_pplEscape(task.title)} ${statusIcon}
-          </span>
-          <span class="ppl-activity-time">${ago}</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  return `<div class="ppl-activity-list">${items}</div>`;
-}
-
-function _pplTimeAgo(dateStr) {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diff = Math.floor((now - d) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-  return `${Math.floor(diff / 604800)}w ago`;
-}
-
-// ===== Main Toolbar =====
-
-function _pplBuildToolbar() {
-  const tab = AppState.peopleTab || 'overview';
-  const weeks = _pplGetWeeks();
-  const rangeLabel = _pplFormatRangeLabel(weeks);
-  const numWeeks = AppState.peopleWeeks || 4;
-  const members = AppState.timelineTeamMembers || [];
-
-  const memberFilterOpts = members.map(m =>
-    `<option value="${m.id}" ${AppState.peopleFilterMember === m.id ? 'selected' : ''}>${_pplEscape(m.name)}</option>`
-  ).join('');
-
-  const tabNames = ['overview', 'roster', 'attendance', 'grades', 'activities'];
+  const tabNames = ['overview', 'roster', 'attendance', 'grades'];
+  const tabLabels = ['Overview', 'Class Roster', 'Attendance', 'Grades'];
   const pillIndex = Math.max(0, tabNames.indexOf(tab));
 
   return `
-    <div class="ppl-header">
-      <div class="ppl-header-top">
-        <h2 class="ppl-page-title">Classes</h2>
-        <div class="ppl-header-actions">
-          <div class="ppl-search-wrap">
-            <svg class="ppl-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="ppl-search-input" placeholder="Search students..." value="${_pplEscape(AppState.peopleSearchQuery || '')}" oninput="_pplSearchMembers(this.value)">
+    <div class="cls-header">
+      <div class="cls-header-top">
+        <h2 class="cls-page-title">Classes</h2>
+        <div class="cls-header-actions">
+          <div class="cls-search-wrap">
+            <svg class="cls-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="cls-search-input" placeholder="Search..." value="${_clsEscape(AppState.classesSearchQuery || '')}" oninput="_clsSearch(this.value)">
           </div>
-          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal(); AppState._peopleReturnAfterModal = true;">
+          <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal(); AppState._classesReturnAfterModal = true;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
             New Student
           </button>
         </div>
       </div>
-
-      <div class="ppl-header-tabs">
-        <div class="tl-pill-group" data-count="5">
-          <div class="tl-pill-slider" style="--pill-index: ${pillIndex}; --pill-count: 5;"></div>
-          <button class="tl-pill-btn ${tab === 'overview' ? 'active' : ''}" onclick="_pplSetTab('overview')">Overview</button>
-          <button class="tl-pill-btn ${tab === 'roster' ? 'active' : ''}" onclick="_pplSetTab('roster')">Class Roster</button>
-          <button class="tl-pill-btn ${tab === 'attendance' ? 'active' : ''}" onclick="_pplSetTab('attendance')">Attendance</button>
-          <button class="tl-pill-btn ${tab === 'grades' ? 'active' : ''}" onclick="_pplSetTab('grades')">Grades</button>
-          <button class="tl-pill-btn ${tab === 'activities' ? 'active' : ''}" onclick="_pplSetTab('activities')">Activities</button>
+      <div class="cls-header-tabs">
+        <div class="tl-pill-group" data-count="${tabNames.length}">
+          <div class="tl-pill-slider" style="--pill-index: ${pillIndex}; --pill-count: ${tabNames.length};"></div>
+          ${tabNames.map((t, i) => `<button class="tl-pill-btn ${tab === t ? 'active' : ''}" onclick="_clsSetTab('${t}')">${tabLabels[i]}</button>`).join('')}
         </div>
       </div>
-
-      ${tab === 'overview' ? `
-      <div class="ppl-controls">
-        <div class="tl-filter-wrap">
-          <svg class="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg>
-          <select class="tl-filter-v2" onchange="_pplSetFilterMember(this.value)">
-            <option value="">All Students</option>
-            ${memberFilterOpts}
-          </select>
-        </div>
-
-        <div class="ppl-nav-group">
-          <button class="tl-nav-btn" onclick="_pplNavigateWeeks(-1)" title="Previous">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <div class="ppl-weeks-select-wrap">
-            <select class="ppl-weeks-select" onchange="_pplSetWeeks(parseInt(this.value))">
-              <option value="2" ${numWeeks === 2 ? 'selected' : ''}>2 weeks</option>
-              <option value="4" ${numWeeks === 4 ? 'selected' : ''}>4 weeks</option>
-              <option value="6" ${numWeeks === 6 ? 'selected' : ''}>6 weeks</option>
-              <option value="8" ${numWeeks === 8 ? 'selected' : ''}>8 weeks</option>
-            </select>
-          </div>
-          <button class="tl-nav-btn" onclick="_pplNavigateWeeks(1)" title="Next">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-
-        <span class="ppl-range-badge">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          ${rangeLabel}
-        </span>
-      </div>` : ''}
     </div>
   `;
 }
 
-// ===== Main Render =====
+// ===== MAIN RENDER =====
 
 async function renderPeople() {
   const content = document.getElementById('content');
   if (!content) return;
 
-  if (!AppState._peopleInitialLoad) {
-    AppState._peopleInitialLoad = true;
+  if (!AppState._classesInitialLoad) {
+    AppState._classesInitialLoad = true;
     content.innerHTML = `<div class="animate-slide-up" style="padding: 48px; text-align: center;"><p style="color: var(--text-muted);">Loading class data...</p></div>`;
     await timelineRefreshData();
   }
 
-  const prevTasks = AppState.timelineTasks;
-  const filterMember = AppState.peopleFilterMember;
-  if (filterMember) {
-    AppState.timelineTasks = (prevTasks || []).filter(t => t.assignee_id === filterMember);
-    const allMembers = AppState.timelineTeamMembers;
-    AppState.timelineTeamMembers = (allMembers || []).filter(m => m.id === filterMember);
-
-    var allData = _pplComputeAllData();
-
-    AppState.timelineTasks = prevTasks;
-    AppState.timelineTeamMembers = allMembers;
-  } else {
-    var allData = _pplComputeAllData();
-  }
-
-  const tab = AppState.peopleTab || 'overview';
-  const toolbar = _pplBuildToolbar();
+  const tab = AppState.classesTab || 'overview';
+  const toolbar = _clsBuildToolbar();
 
   let body = '';
   if (tab === 'overview') {
-    body = _pplBuildOverviewStats() + _pplBuildChart(allData) + _pplBuildFilters(allData) + _pplBuildTable(allData);
+    body = _clsBuildOverviewStats() + _clsBuildClassCards();
   } else if (tab === 'roster') {
-    body = _pplBuildRoster();
+    body = _clsBuildRoster();
   } else if (tab === 'attendance') {
-    body = _pplBuildAttendance();
+    body = _clsBuildAttendance();
   } else if (tab === 'grades') {
-    body = _pplBuildGrades();
-  } else if (tab === 'activities') {
-    body = _pplBuildActivities();
+    body = _clsBuildGrades();
   }
 
   content.innerHTML = `
-    <div class="animate-slide-up ppl-view">
+    <div class="animate-slide-up cls-view">
       ${toolbar}
-      <div class="ppl-body">${body}</div>
+      <div class="cls-body">${body}</div>
     </div>
   `;
 }
@@ -1347,24 +1077,23 @@ async function renderPeople() {
 
 if (typeof window !== 'undefined') {
   window.renderPeople = renderPeople;
-  window._pplSetTab = _pplSetTab;
-  window._pplSetFilter = _pplSetFilter;
-  window._pplSetFilterMember = _pplSetFilterMember;
-  window._pplNavigateWeeks = _pplNavigateWeeks;
-  window._pplSetWeeks = _pplSetWeeks;
-  window._pplSearchMembers = _pplSearchMembers;
-  window._pplShowMemberMenu = _pplShowMemberMenu;
-  window._pplHideMemberMenu = _pplHideMemberMenu;
-  window._pplEditMember = _pplEditMember;
-  window._pplViewMemberTasks = _pplViewMemberTasks;
-  window._pplViewStudentReport = _pplViewStudentReport;
-  window._pplDeleteMember = _pplDeleteMember;
-  window._pplSubmitEditMember = _pplSubmitEditMember;
-  window._pplMarkAttendance = _pplMarkAttendance;
-  window._pplMarkAllAttendance = _pplMarkAllAttendance;
-  window._pplAttendanceNav = _pplAttendanceNav;
-  window._pplSetGrade = _pplSetGrade;
-  window._pplAddAssignment = _pplAddAssignment;
-  window._pplSubmitAssignment = _pplSubmitAssignment;
-  window._pplRemoveAssignment = _pplRemoveAssignment;
+  window._clsSetTab = _clsSetTab;
+  window._clsSearch = _clsSearch;
+  window._clsExpandClass = _clsExpandClass;
+  window._clsOpenAddStudentsModal = _clsOpenAddStudentsModal;
+  window._clsSubmitAddStudents = _clsSubmitAddStudents;
+  window._clsRemoveStudentFromClass = _clsRemoveStudentFromClass;
+  window._clsShowStudentMenu = _clsShowStudentMenu;
+  window._clsHideStudentMenu = _clsHideStudentMenu;
+  window._clsEditStudent = _clsEditStudent;
+  window._clsSubmitEditStudent = _clsSubmitEditStudent;
+  window._clsViewStudentLessons = _clsViewStudentLessons;
+  window._clsDeleteStudent = _clsDeleteStudent;
+  window._clsMarkAttendance = _clsMarkAttendance;
+  window._clsMarkAllAttendance = _clsMarkAllAttendance;
+  window._clsAttendanceNav = _clsAttendanceNav;
+  window._clsSetGrade = _clsSetGrade;
+  window._clsAddAssignment = _clsAddAssignment;
+  window._clsSubmitAssignment = _clsSubmitAssignment;
+  window._clsRemoveAssignment = _clsRemoveAssignment;
 }

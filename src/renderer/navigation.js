@@ -34,7 +34,7 @@ const viewMeta = {
   },
   people: {
     title: 'Classes',
-    subtitle: 'Monitor class schedules, student workload, and teaching allocations.'
+    subtitle: 'Manage your classes, students, attendance, and grades.'
   }
 };
 
