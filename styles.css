@@ -1,5 +1,5 @@
 /* =========================================
-   Community Curator - Modern Design System
+   Teacher Planner - Modern Design System
    A refined dark theme with glass morphism,
    subtle gradients, and fluid animations
    ========================================= */
@@ -2285,9 +2285,12 @@ textarea {
   z-index: 3;
   height: 28px;
   align-self: center;
-  margin: 0 3px;
+  /* horizontal margins now set inline for proportional positioning */
+  margin-top: 0;
+  margin-bottom: 0;
+  min-width: 8px;
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, filter 0.2s ease;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   position: relative;
 }
@@ -2380,6 +2383,174 @@ textarea {
 @keyframes tl-pulse {
   0%, 100% { box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); transform: scale(1); }
   50% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.6); transform: scale(1.15); }
+}
+
+/* ===== Interactive Gantt: Resize Handles ===== */
+.gantt-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.gantt-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+}
+.gantt-resize-left {
+  left: -3px;
+}
+.gantt-resize-left::after {
+  left: 3px;
+}
+.gantt-resize-right {
+  right: -3px;
+}
+.gantt-resize-right::after {
+  right: 3px;
+}
+.gantt-task-bar:hover .gantt-resize-handle {
+  opacity: 1;
+}
+
+/* ===== Interactive Gantt: Add Row (Draw Zone) ===== */
+.gantt-add-label {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+  border-top: 1px dashed rgba(255, 255, 255, 0.04);
+  background: transparent;
+}
+.gantt-add-label:hover {
+  opacity: 0.9;
+}
+.gantt-add-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-style: italic;
+  color: var(--text-muted);
+  opacity: 0.7;
+  user-select: none;
+}
+.gantt-add-cell {
+  border-top: 1px dashed rgba(255, 255, 255, 0.04);
+  border-right: 1px solid rgba(255, 255, 255, 0.02);
+  cursor: crosshair;
+  transition: background 0.15s ease;
+  min-height: 32px;
+}
+.gantt-add-cell:hover {
+  background: rgba(20, 184, 166, 0.06);
+}
+.gantt-add-cell.gantt-col-today {
+  background: rgba(20, 184, 166, 0.04);
+}
+.gantt-add-cell.gantt-col-weekend {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ===== Interactive Gantt: Draggable Lesson Block (toolbar) ===== */
+.tl-drag-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, var(--accent-primary) 0%, #0d9488 100%);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px rgba(20, 184, 166, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  position: relative;
+}
+.tl-drag-block:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.tl-drag-block:active {
+  cursor: grabbing;
+  transform: scale(0.97);
+}
+.tl-drag-grip {
+  opacity: 0.45;
+  margin-left: 2px;
+}
+.tl-drag-block:hover .tl-drag-grip {
+  opacity: 0.7;
+}
+
+/* Floating ghost (while dragging from toolbar, outside grid) */
+.gantt-bar-floating {
+  pointer-events: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(20, 184, 166, 0.4);
+  animation: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ===== Interactive Gantt: Ghost Bar (during drag-to-create) ===== */
+.gantt-bar-ghost {
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 28px;
+  align-self: center;
+  margin: 0 3px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), 0 0 24px -4px currentColor;
+  border: 1.5px dashed rgba(255, 255, 255, 0.35);
+  animation: gantt-ghost-pulse 1s ease-in-out infinite;
+}
+@keyframes gantt-ghost-pulse {
+  0%, 100% { border-color: rgba(255, 255, 255, 0.35); }
+  50% { border-color: rgba(255, 255, 255, 0.55); }
+}
+
+/* ===== Interactive Gantt: Inline Name Input ===== */
+.gantt-bar-ghost.gantt-bar-naming {
+  height: 38px;
+  min-width: 180px;
+  padding: 0 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 3px rgba(20, 184, 166, 0.3);
+  animation: none;
+  z-index: 25;
+}
+.gantt-bar-name-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0;
+  line-height: 38px;
+  caret-color: #fff;
+  letter-spacing: 0.01em;
+}
+.gantt-bar-name-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  font-size: 0.8125rem;
 }
 
 /* Tooltip */
@@ -2532,6 +2703,96 @@ textarea {
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-tertiary);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* Auto-status display */
+.tl-auto-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tl-auto-status-hint {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* File attachments */
+.tl-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.tl-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: background 0.15s ease;
+}
+.tl-file-item:hover {
+  background: var(--bg-elevated);
+}
+.tl-file-item svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.tl-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.tl-file-open,
+.tl-file-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.tl-file-open:hover {
+  color: var(--accent-primary);
+  background: rgba(20, 184, 166, 0.1);
+}
+.tl-file-remove {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.tl-file-remove:hover {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.1);
+}
+.tl-file-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--bg-tertiary);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.tl-file-add-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
 /* Color Palette Picker */
@@ -4533,4 +4794,1080 @@ textarea {
 .ppl-activity-time {
   font-size: 0.6875rem;
   color: var(--text-muted);
+}
+
+
+/* =========================================
+   CLASSES PAGE - Overview Stats Grid
+   ========================================= */
+
+.cls-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.cls-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cls-stat-card:hover {
+  border-color: var(--border-hover);
+}
+
+.cls-stat-card--alert {
+  border-color: rgba(239, 68, 68, 0.35);
+  box-shadow: var(--shadow-sm), 0 0 16px -4px rgba(239, 68, 68, 0.15);
+}
+
+.cls-stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.cls-stat-icon--students {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+}
+
+.cls-stat-icon--active {
+  background: rgba(20, 184, 166, 0.15);
+  color: var(--accent-primary);
+}
+
+.cls-stat-icon--done {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.cls-stat-icon--overdue {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.cls-stat-icon--upcoming {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.cls-stat-icon--attendance {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.cls-stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cls-stat-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.cls-stat-sub {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cls-stat-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+
+/* =========================================
+   CLASSES PAGE - Attendance Tracker
+   ========================================= */
+
+.att-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.att-week-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.att-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.att-table th,
+.att-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.att-day-header {
+  padding: 8px 6px !important;
+  min-width: 72px;
+}
+
+.att-day-header.att-day-today {
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.att-day-header.att-day-future {
+  opacity: 0.45;
+}
+
+.att-day-name {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.att-day-num {
+  display: block;
+  font-size: 0.5625rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.att-btn-group {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+}
+
+.att-mark-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.15);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.att-mark-btn:hover {
+  border-color: var(--border-hover);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.att-mark-btn.att-active-present {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #22c55e;
+}
+
+.att-mark-btn.att-active-late {
+  background: rgba(234, 179, 8, 0.2);
+  border-color: rgba(234, 179, 8, 0.5);
+  color: #eab308;
+}
+
+.att-mark-btn.att-active-absent {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+
+.att-mark-all-btn {
+  padding: 4px 10px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  background: rgba(20, 184, 166, 0.1);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.att-mark-all-btn:hover {
+  background: rgba(20, 184, 166, 0.2);
+  border-color: rgba(20, 184, 166, 0.5);
+}
+
+.att-rate-cell {
+  padding: 8px 12px !important;
+}
+
+.att-rate-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 20px;
+  line-height: 1.4;
+}
+
+.att-rate-good {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.att-rate-warn {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.att-rate-bad {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.att-rate-na {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.att-day-stat {
+  padding: 6px !important;
+}
+
+.att-day-stat.att-stat-today {
+  background: rgba(20, 184, 166, 0.05);
+}
+
+.att-stat-rate {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.att-stat-empty {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+.att-stats-row td {
+  border-top: 2px solid var(--border-default) !important;
+  border-bottom: none !important;
+  padding: 6px !important;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.att-quick-row td {
+  border-bottom: 2px solid var(--border-default) !important;
+  padding: 6px !important;
+}
+
+.att-th-rate {
+  min-width: 70px;
+}
+
+
+/* =========================================
+   CLASSES PAGE - Grade Tracker
+   ========================================= */
+
+.grade-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.grade-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.grade-table th,
+.grade-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.grade-assign-header {
+  min-width: 100px;
+  max-width: 140px;
+  padding: 8px 6px !important;
+  position: relative;
+}
+
+.grade-assign-name {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.grade-assign-max {
+  font-size: 0.5625rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.grade-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.grade-assign-header:hover .grade-remove-btn {
+  opacity: 1;
+}
+
+.grade-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.grade-cell {
+  padding: 6px !important;
+}
+
+.grade-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.grade-input-wrap.grade-high {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.grade-input-wrap.grade-mid {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.grade-input-wrap.grade-low {
+  background: rgba(234, 179, 8, 0.08);
+}
+
+.grade-input-wrap.grade-fail {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.grade-input {
+  width: 48px;
+  padding: 4px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  outline: none;
+  text-align: center;
+  transition: border-color 0.15s ease;
+  -moz-appearance: textfield;
+}
+
+.grade-input::-webkit-outer-spin-button,
+.grade-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.grade-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary-soft);
+}
+
+.grade-pct {
+  font-size: 0.625rem;
+  font-weight: 700;
+  min-width: 30px;
+  text-align: left;
+}
+
+.grade-high .grade-pct { color: #22c55e; }
+.grade-mid .grade-pct { color: #3b82f6; }
+.grade-low .grade-pct { color: #eab308; }
+.grade-fail .grade-pct { color: #ef4444; }
+
+.grade-avg-cell {
+  padding: 8px 12px !important;
+}
+
+.grade-avg-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 20px;
+  line-height: 1.4;
+}
+
+.grade-avg-badge.grade-high {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.grade-avg-badge.grade-mid {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.grade-avg-badge.grade-low {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.grade-avg-badge.grade-fail {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.grade-class-avg td {
+  border-top: 2px solid var(--border-default) !important;
+  font-weight: 700;
+}
+
+.grade-class-avg-row td {
+  border-top: 2px solid var(--border-default) !important;
+}
+
+.grade-th-avg {
+  min-width: 80px;
+}
+
+
+/* =========================================
+   CLASSES PAGE - Class Roster
+   ========================================= */
+
+.cls-roster-group {
+  margin-bottom: 24px;
+}
+
+.cls-roster-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cls-roster-group-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cls-roster-group-count {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+.cls-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.cls-roster-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.cls-roster-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm), 0 4px 16px -4px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.cls-roster-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cls-roster-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cls-roster-name {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cls-roster-role {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.cls-roster-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.cls-roster-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+}
+
+.cls-roster-stat-val {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.cls-roster-stat-val.cls-roster-overdue {
+  color: #ef4444;
+}
+
+.cls-roster-stat-label {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cls-roster-capacity {
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.cls-roster-cap-label {
+  font-size: 0.625rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+
+/* =========================================
+   CLASSES PAGE - Student Report Modal Extras
+   ========================================= */
+
+.cls-report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cls-report-stat {
+  text-align: center;
+  padding: 12px 8px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+}
+
+.cls-report-stat-val {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.cls-report-stat-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+
+/* =========================================
+   TIMELINE - Quick Stats Banner
+   ========================================= */
+
+.tl-quick-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 14px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tl-qs-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 20px;
+  flex-shrink: 0;
+}
+
+.tl-qs-item--progress {
+  flex-direction: row;
+  gap: 10px;
+}
+
+.tl-qs-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.tl-qs-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.tl-qs-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.tl-qs-progress-ring {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.tl-qs-progress-ring svg {
+  width: 44px;
+  height: 44px;
+  transform: rotate(-90deg);
+}
+
+.tl-qs-progress-ring circle {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.tl-qs-progress-ring circle:first-child {
+  stroke: rgba(255, 255, 255, 0.06);
+}
+
+.tl-qs-progress-ring circle:last-child {
+  stroke: var(--accent-primary);
+  stroke-dasharray: 125.66;
+  stroke-dashoffset: calc(125.66 - (125.66 * var(--progress, 0)) / 100);
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+.tl-qs-ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: var(--accent-primary);
+}
+
+
+/* =========================================
+   TIMELINE - Curriculum Progress
+   ========================================= */
+
+.tl-cp-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
+
+.tl-cp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.tl-cp-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tl-cp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tl-cp-row:last-child {
+  border-bottom: none;
+}
+
+.tl-cp-name {
+  width: 140px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-cp-name .tl-project-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.tl-cp-bar-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.tl-cp-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+}
+
+.tl-cp-bar-done {
+  height: 100%;
+  border-radius: 4px 0 0 4px;
+  transition: width 0.4s ease;
+}
+
+.tl-cp-bar-prog {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.tl-cp-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  width: 50px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.tl-cp-pct {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+
+/* =========================================
+   TIMELINE - Board / Kanban View
+   ========================================= */
+
+.tl-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  min-height: 400px;
+}
+
+.tl-board-column {
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.tl-board-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 2px solid var(--border-subtle);
+}
+
+.tl-board-column-header.tl-board-col--planned {
+  border-bottom-color: rgba(148, 163, 184, 0.4);
+}
+
+.tl-board-column-header.tl-board-col--progress {
+  border-bottom-color: rgba(59, 130, 246, 0.5);
+}
+
+.tl-board-column-header.tl-board-col--done {
+  border-bottom-color: rgba(34, 197, 94, 0.5);
+}
+
+.tl-board-column-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tl-board-column-count {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 20px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.tl-board-column-body {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+.tl-board-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.tl-board-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.tl-board-card--overdue {
+  border-color: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 12px -4px rgba(239, 68, 68, 0.15);
+}
+
+.tl-board-card--overdue:hover {
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.tl-board-card-unit {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.tl-board-card-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.tl-board-card-desc {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.tl-board-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tl-board-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.625rem;
+  color: var(--text-muted);
+}
+
+.tl-board-card-date {
+  font-weight: 600;
+}
+
+.tl-board-date--overdue {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.tl-board-card-effort {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tl-board-avatar-stack {
+  display: flex;
+  flex-direction: row-reverse;
+}
+
+.tl-board-avatar-stack .tl-board-avatar:not(:last-child) {
+  margin-left: -6px;
+}
+
+.tl-board-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid var(--bg-secondary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.tl-board-empty {
+  text-align: center;
+  padding: 32px 16px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+
+/* =========================================
+   TIMELINE - Overdue Badge (List View)
+   ========================================= */
+
+.tl-overdue-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.tl-list-row--overdue td {
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.tl-list-row--overdue:hover td {
+  background: rgba(239, 68, 68, 0.06) !important;
 }

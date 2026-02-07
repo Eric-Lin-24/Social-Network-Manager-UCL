@@ -16,7 +16,7 @@ const GoogleDriveAPI = {
       // Must have an app user logged in, otherwise we cannot scope storage
       if (!AppState.userId) {
         showNotification(
-          'Please sign in to your Community Curator account first before connecting to Google Drive',
+          'Please sign in to your Teacher Planner account first before connecting to Google Drive',
           'error'
         );
         return;

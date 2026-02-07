@@ -1,7 +1,7 @@
 {
   "name": "community-curator-electron",
   "version": "1.0.0",
-  "description": "Community Curator - WhatsApp Document Management for Electron",
+  "description": "Teacher Planner - Teaching Platform for Electron",
   "main": "main.js",
   "scripts": {
     "start": "electron-forge start",

@@ -15,8 +15,8 @@ class User(Base):
 
 
 class Workspace(Base):
-    """Top-level Project that groups Tasks together.
-    User-facing name: 'Project'  (Project > Task > Sub-task)"""
+    """Top-level Course that groups Units together.
+    User-facing name: 'Course'  (Course > Unit > Lesson)"""
     __tablename__ = "workspaces"
 
     id = Column(String, primary_key=True, index=True)
@@ -28,8 +28,8 @@ class Workspace(Base):
 
 
 class Project(Base):
-    """Mid-level Task that belongs to a Workspace.
-    User-facing name: 'Task'  (Project > Task > Sub-task)"""
+    """Mid-level Unit that belongs to a Course.
+    User-facing name: 'Unit'  (Course > Unit > Lesson)"""
     __tablename__ = "projects"
 
     id = Column(String, primary_key=True, index=True)
@@ -47,7 +47,7 @@ class TeamMember(Base):
     name = Column(String, nullable=False)
     role = Column(String, default="")
     avatar_initials = Column(String, default="??")
-    weekly_capacity_hours = Column(Integer, default=40)
+    weekly_capacity_hours = Column(Integer, default=25)
     owner_uuid = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

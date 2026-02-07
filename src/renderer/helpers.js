@@ -202,10 +202,10 @@ function showHelpGuide() {
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Welcome to Community Curator!
+                Welcome to Teacher Planner!
               </h4>
               <p class="text-sm text-blue-800">
-                This platform helps you manage documents, schedule messages, and collect responses from your community all in one place.
+                This platform helps you manage teaching resources, schedule messages, and plan your courses and lessons all in one place.
               </p>
             </div>
 
@@ -265,7 +265,7 @@ function showHelpGuide() {
                     </div>
                     <div>
                       <h5 class="font-medium text-gray-800 mb-1">Dashboard</h5>
-                      <p class="text-sm text-gray-600">Get an overview of all activities and upcoming tasks at a glance.</p>
+                      <p class="text-sm text-gray-600">Get an overview of all activities and upcoming lessons at a glance.</p>
                     </div>
                   </div>
                 </div>
@@ -357,14 +357,14 @@ function showHelpGuide() {
                 Access the Help button (?) in the top-right corner anytime to view this guide again.
               </p>
               <div class="flex gap-2">
-                <a href="https://github.com/yourusername/community-curator" target="_blank" class="text-sm text-purple-700 hover:text-purple-900 font-medium flex items-center gap-1">
+                <a href="https://github.com/yourusername/teacher-planner" target="_blank" class="text-sm text-purple-700 hover:text-purple-900 font-medium flex items-center gap-1">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                   Documentation
                 </a>
                 <span class="text-purple-300">•</span>
-                <a href="#" onclick="alert('Contact support: support@communitycurator.org')" class="text-sm text-purple-700 hover:text-purple-900 font-medium">Contact Support</a>
+                <a href="#" onclick="alert('Contact support: support@teacherplanner.org')" class="text-sm text-purple-700 hover:text-purple-900 font-medium">Contact Support</a>
               </div>
             </div>
           </div>

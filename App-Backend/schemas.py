@@ -24,7 +24,7 @@ class Token(BaseModel):
     token_type: str
 
 
-# --- Workspace Schemas (User-facing: "Project") ---
+# --- Workspace Schemas (User-facing: "Course") ---
 
 class WorkspaceCreate(BaseModel):
     name: str
@@ -48,7 +48,7 @@ class WorkspaceResponse(BaseModel):
         from_attributes = True
 
 
-# --- Project Schemas (User-facing: "Task") ---
+# --- Project Schemas (User-facing: "Unit") ---
 
 class ProjectCreate(BaseModel):
     name: str
@@ -72,13 +72,13 @@ class ProjectResponse(BaseModel):
         from_attributes = True
 
 
-# --- TeamMember Schemas ---
+# --- TeamMember Schemas (User-facing: "Student") ---
 
 class TeamMemberCreate(BaseModel):
     name: str
     role: Optional[str] = ""
     avatar_initials: Optional[str] = None
-    weekly_capacity_hours: Optional[int] = 40
+    weekly_capacity_hours: Optional[int] = 25
 
 class TeamMemberUpdate(BaseModel):
     name: Optional[str] = None
@@ -99,7 +99,7 @@ class TeamMemberResponse(BaseModel):
         from_attributes = True
 
 
-# --- TimelineTask Schemas ---
+# --- TimelineTask Schemas (User-facing: "Lesson") ---
 
 class TimelineTaskCreate(BaseModel):
     title: str

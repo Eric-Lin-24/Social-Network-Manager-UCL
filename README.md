@@ -1,6 +1,6 @@
-# COMMUNITY CURATOR
+# TEACHER PLANNER
 
-Community Curator is a desktop dashboard for planning, scheduling, and managing community messages. It lets you attach cloud files, schedule messages across multiple days, and view everything in a calendar so nothing gets missed.
+Teacher Planner is a desktop dashboard for planning courses, scheduling messages, and managing teaching resources. It lets you attach cloud files, schedule messages across multiple days, and view everything in a calendar so nothing gets missed.
 
 This document explains how to use the app step by step.
 

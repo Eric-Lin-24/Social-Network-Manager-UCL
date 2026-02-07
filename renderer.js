@@ -1,5 +1,5 @@
 // ============================================
-// COMMUNITY CURATOR - Main Application Entry Point
+// TEACHER PLANNER - Main Application Entry Point
 // Orchestrates initialization and event listeners
 // ============================================
 
@@ -108,7 +108,7 @@ document.addEventListener('keydown', (e) => {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('Community Curator starting...');
+  console.log('Teacher Planner starting...');
 
   // Initialize theme
   if (typeof initializeTheme === 'function') {
@@ -388,7 +388,7 @@ function renderLoginScreen() {
               </g>
             </svg>
           </div>
-          <h1 class="login-title">Community Curator</h1>
+          <h1 class="login-title">Teacher Planner</h1>
           <p class="login-subtitle">Social Network Manager</p>
         </div>
 

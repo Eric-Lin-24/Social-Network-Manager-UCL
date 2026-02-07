@@ -79,11 +79,11 @@ const AppState = {
   timelineFilterProject: '',
   timelineFilterPerson: '',
 
-  // Workspaces (User-facing: "Projects") - top-level grouping
+  // Workspaces (User-facing: "Courses") - top-level grouping
   timelineWorkspaces: [],
 
-  // Timeline Project Index
-  timelineSelectedProject: null, // null = show project index, string = workspace id to show Gantt for
+  // Planner Course Index
+  timelineSelectedProject: null, // null = show course index, string = workspace id to show Gantt for
   timelineProjectSearch: '',
   timelineProjectViewMode: 'grid' // 'grid' | 'list'
 };

@@ -1,5 +1,5 @@
 """
-FastAPI application - REST API endpoints for scheduled message system.
+FastAPI application - REST API endpoints for Teacher Planner system.
 """
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.staticfiles import StaticFiles
@@ -31,8 +31,8 @@ load_dotenv()
 
 # Create FastAPI application
 app = FastAPI(
-    title="Scheduled Message API",
-    description="API for scheduling messages with file attachments and Telegram delivery",
+    title="Teacher Planner API",
+    description="API for teacher planning with courses, units, lessons, and message scheduling",
     version="1.0.0"
 )
 
@@ -90,7 +90,7 @@ async def root():
 
 
 # ============================================
-# WORKSPACE ENDPOINTS (User-facing: "Project")
+# WORKSPACE ENDPOINTS (User-facing: "Course")
 # ============================================
 
 @app.post("/workspaces", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
@@ -146,7 +146,7 @@ def delete_workspace(workspace_id: str, user_uuid: str, db: Session = Depends(ge
 
 
 # ============================================
-# PROJECT ENDPOINTS (User-facing: "Task")
+# PROJECT ENDPOINTS (User-facing: "Unit")
 # ============================================
 
 @app.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -203,7 +203,7 @@ def delete_project(project_id: str, user_uuid: str, db: Session = Depends(get_db
 
 
 # ============================================
-# TEAM MEMBER ENDPOINTS
+# STUDENT ENDPOINTS (User-facing: "Student")
 # ============================================
 
 @app.post("/team-members", response_model=TeamMemberResponse, status_code=status.HTTP_201_CREATED)
@@ -217,7 +217,7 @@ def create_team_member(member: TeamMemberCreate, user_uuid: str, db: Session = D
         name=member.name,
         role=member.role or "",
         avatar_initials=initials,
-        weekly_capacity_hours=member.weekly_capacity_hours or 40,
+        weekly_capacity_hours=member.weekly_capacity_hours or 25,
         owner_uuid=user_uuid,
     )
     db.add(db_member)
@@ -262,7 +262,7 @@ def delete_team_member(member_id: str, user_uuid: str, db: Session = Depends(get
 
 
 # ============================================
-# TIMELINE TASK ENDPOINTS
+# LESSON ENDPOINTS (User-facing: "Lesson")
 # ============================================
 
 @app.post("/timeline-tasks", response_model=TimelineTaskResponse, status_code=status.HTTP_201_CREATED)

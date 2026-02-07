@@ -21,8 +21,8 @@ const MicrosoftGraphAPI = {
         console.error('❌ Cannot connect to Microsoft: No app user logged in');
         console.error('   → AppState.userId is:', AppState.userId);
         console.error('   → AppState.username is:', AppState.username);
-        console.error('   → User must sign in to Community Curator first');
-        showNotification('Please sign in to your Community Curator account first before connecting to Microsoft', 'error');
+        console.error('   → User must sign in to Teacher Planner first');
+        showNotification('Please sign in to your Teacher Planner account first before connecting to Microsoft', 'error');
         return;
       }
 

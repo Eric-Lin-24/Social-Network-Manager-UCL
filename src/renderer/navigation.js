@@ -6,11 +6,11 @@
 const viewMeta = {
   dashboard: {
     title: 'Dashboard',
-    subtitle: "Welcome back! Here's your overview."
+    subtitle: "Welcome back! Here's your teaching overview."
   },
   documents: {
     title: 'Documents',
-    subtitle: 'Manage and sync your cloud files.'
+    subtitle: 'Manage and sync your teaching resources.'
   },
   scheduling: {
     title: 'Messages',
@@ -29,12 +29,12 @@ const viewMeta = {
     subtitle: 'Configure platform connections and preferences.'
   },
   timeline: {
-    title: 'Projects',
-    subtitle: 'Browse and manage your project timelines.'
+    title: 'Planner',
+    subtitle: 'Browse and manage your courses and lesson plans.'
   },
   people: {
-    title: 'People',
-    subtitle: 'Monitor team capacity, utilization, and workload distribution.'
+    title: 'Classes',
+    subtitle: 'Monitor class schedules, student workload, and teaching allocations.'
   }
 };
 
@@ -331,7 +331,7 @@ async function refreshCurrentView() {
       }
 
       case 'people': {
-        showLoadingOverlay('Syncing people…');
+        showLoadingOverlay('Syncing classes…');
         if (typeof timelineRefreshData === 'function') {
           await maybeAwait(timelineRefreshData);
         }

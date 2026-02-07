@@ -112,12 +112,12 @@ function renderSettings() {
       <div class="card">
         <h3 class="font-semibold mb-4">About</h3>
         <div class="flex flex-col gap-3">
-          <div class="flex justify-between"><span class="text-muted">Application</span><span>Community Curator</span></div>
+          <div class="flex justify-between"><span class="text-muted">Application</span><span>Teacher Planner</span></div>
           <div class="flex justify-between"><span class="text-muted">Version</span><span>1.0.0</span></div>
           <div class="flex justify-between"><span class="text-muted">Platform</span><span>Electron</span></div>
         </div>
         <div class="divider"></div>
-        <p class="text-sm text-muted">Community Curator helps you manage documents, schedule messages, and collect feedback.</p>
+        <p class="text-sm text-muted">Teacher Planner helps you manage teaching resources, schedule messages, and plan your courses and lessons.</p>
       </div>
     </div>
   `;
