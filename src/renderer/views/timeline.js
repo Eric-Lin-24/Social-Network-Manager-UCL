@@ -421,7 +421,7 @@ function _tlBuildToolbar() {
 
         <div class="tl-toolbar-section tl-toolbar-section--actions">
           <div class="tl-drag-block" id="tl-task-drag-block" title="Drag onto the timeline to create a task">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="18" height="10" rx="3"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="3"/></svg>
             <span>Task</span>
             <svg class="tl-drag-grip" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="2"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/></svg>
           </div>
@@ -466,8 +466,10 @@ function _ganttBuildChart() {
       for (const task of projectTasks) {
         rows.push({ type: 'task', task, project });
       }
-      // Add-row: empty row for drawing new tasks
-      rows.push({ type: 'add', project });
+      // Add-row: empty row for drawing new tasks (only shown if project has no tasks)
+      if (projectTasks.length === 0) {
+        rows.push({ type: 'add', project });
+      }
     }
   }
 
@@ -479,7 +481,7 @@ function _ganttBuildChart() {
       for (const task of orphanTasks) {
         rows.push({ type: 'task', task, project: orphanProject });
       }
-      rows.push({ type: 'add', project: orphanProject });
+      // No add-row for orphan project since it already has tasks
     }
   }
 
