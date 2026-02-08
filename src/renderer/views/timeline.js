@@ -481,7 +481,7 @@ function _ganttBuildChart() {
       for (const task of orphanTasks) {
         rows.push({ type: 'task', task, project: orphanProject });
       }
-      // No add-row for orphan project since it already has tasks
+      // No add-row for orphan project since it only shows up when there are already unassigned tasks
     }
   }
 
