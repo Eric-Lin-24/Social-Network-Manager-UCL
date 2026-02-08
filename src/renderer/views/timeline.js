@@ -549,6 +549,9 @@ function _ganttBuildChart() {
         <span class="gantt-project-dot" style="background: ${row.project.color};"></span>
         <span class="gantt-project-name">${_tlEscape(row.project.name)}</span>
         <span class="gantt-project-count">${row.taskCount}</span>
+        <button class="gantt-send-msg-btn" onclick="event.stopPropagation(); sendMessageForProject('${row.project.id}')" title="Send message to assigned people">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
         <button class="gantt-add-subtask-btn" onclick="event.stopPropagation(); openCreateTaskModal('${row.project.id}')" title="Add task">+</button>
       </div>`;
 
