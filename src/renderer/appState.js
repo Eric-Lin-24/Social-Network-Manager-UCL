@@ -23,10 +23,16 @@ const AppState = {
     subscribedChats: null
   },
 
-  // Messaging
+  // Messaging (Telegram)
   scheduledMessages: [],
   subscribedChats: [],
   loadingSubscribedChats: false,
+
+  // Messaging (Email / Gmail)
+  scheduledEmails: [],
+  subscribedEmailUsers: [],
+  loadingSubscribedEmailUsers: false,
+  composeChannel: 'telegram', // 'telegram' | 'email'
 
   // File selection mode (for scheduler -> documents flow)
   fileSelectionMode: false,

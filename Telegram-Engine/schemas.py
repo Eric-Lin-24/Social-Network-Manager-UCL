@@ -60,6 +60,7 @@ class ScheduleEmailResponse(BaseModel):
     id: str
     from_sender: str
     target_user_id: List[str]
+    subject: str
     message: str
     scheduled_timestamp: datetime
     file_paths: Optional[List[str]] = None

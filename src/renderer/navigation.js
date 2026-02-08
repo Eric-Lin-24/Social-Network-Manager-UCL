@@ -248,13 +248,26 @@ async function refreshCurrentView() {
       }
 
       case 'scheduling': {
-        showLoadingOverlay('Syncing chats and messages…');
+        showLoadingOverlay('Syncing chats, emails and messages…');
 
         if (window.AzureVMAPI) {
           await maybeAwait(AzureVMAPI.refreshSubscribedChats);
 
+          if (typeof AzureVMAPI.fetchSubscribedEmailUsers === 'function') {
+            await maybeAwait(AzureVMAPI.fetchSubscribedEmailUsers);
+          }
+
+          // Auto-subscribe team members with emails
+          if (typeof AzureVMAPI.syncTeamMemberEmails === 'function') {
+            await maybeAwait(AzureVMAPI.syncTeamMemberEmails);
+          }
+
           if (typeof AzureVMAPI.syncMessagesFromServer === 'function') {
             await maybeAwait(AzureVMAPI.syncMessagesFromServer);
+          }
+
+          if (typeof AzureVMAPI.syncEmailsFromServer === 'function') {
+            await maybeAwait(AzureVMAPI.syncEmailsFromServer);
           }
         }
 
@@ -274,10 +287,13 @@ async function refreshCurrentView() {
       }
 
       case 'scheduleMessage': {
-        showLoadingOverlay('Syncing chats…');
+        showLoadingOverlay('Syncing chats and email users…');
 
         if (window.AzureVMAPI) {
           await maybeAwait(AzureVMAPI.refreshSubscribedChats);
+          if (typeof AzureVMAPI.fetchSubscribedEmailUsers === 'function') {
+            await maybeAwait(AzureVMAPI.fetchSubscribedEmailUsers);
+          }
           if (typeof AzureVMAPI.syncMessagesFromServer === 'function') {
             await maybeAwait(AzureVMAPI.syncMessagesFromServer);
           }
@@ -309,8 +325,14 @@ async function refreshCurrentView() {
         if (window.AzureVMAPI && typeof AzureVMAPI.refreshSubscribedChats === 'function') {
           tasks.push(Promise.resolve().then(() => AzureVMAPI.refreshSubscribedChats()));
         }
+        if (window.AzureVMAPI && typeof AzureVMAPI.fetchSubscribedEmailUsers === 'function') {
+          tasks.push(Promise.resolve().then(() => AzureVMAPI.fetchSubscribedEmailUsers()));
+        }
         if (window.AzureVMAPI && typeof AzureVMAPI.syncMessagesFromServer === 'function') {
           tasks.push(Promise.resolve().then(() => AzureVMAPI.syncMessagesFromServer()));
+        }
+        if (window.AzureVMAPI && typeof AzureVMAPI.syncEmailsFromServer === 'function') {
+          tasks.push(Promise.resolve().then(() => AzureVMAPI.syncEmailsFromServer()));
         }
 
         await Promise.all(tasks.map(p => p.catch(err => console.warn('Refresh task failed:', err))));

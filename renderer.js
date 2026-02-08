@@ -57,6 +57,16 @@ async function initializeSubscribedChats() {
   } catch (error) {
     console.warn('Could not fetch subscribed chats:', error.message);
   }
+
+  // Also fetch email subscribers
+  try {
+    if (typeof AzureVMAPI.fetchSubscribedEmailUsers === 'function') {
+      await AzureVMAPI.fetchSubscribedEmailUsers();
+      console.log(`Loaded ${AppState.subscribedEmailUsers.length} subscribed email users`);
+    }
+  } catch (error) {
+    console.warn('Could not fetch subscribed email users:', error.message);
+  }
 }
 
 
@@ -787,6 +797,9 @@ function handleLogout() {
   AppState.documents = [];
   AppState.scheduledMessages = [];
   AppState.subscribedChats = [];
+  AppState.scheduledEmails = [];
+  AppState.subscribedEmailUsers = [];
+  AppState.composeChannel = 'telegram';
 
   console.log('✓ User logged out');
 

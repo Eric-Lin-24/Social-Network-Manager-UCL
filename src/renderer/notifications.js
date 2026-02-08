@@ -17,7 +17,8 @@ function showNotification(message, type = 'info') {
   const color = colors[type] || colors.info;
 
   const notification = document.createElement('div');
-  notification.className = `fixed top-4 right-4 ${color} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in`;
+  notification.className = `fixed top-4 right-4 ${color} text-white px-6 py-3 rounded-lg shadow-lg animate-fade-in`;
+  notification.style.zIndex = '9999';
   notification.textContent = message;
 
   document.body.appendChild(notification);
