@@ -466,10 +466,8 @@ function _ganttBuildChart() {
       for (const task of projectTasks) {
         rows.push({ type: 'task', task, project });
       }
-      // Add-row: empty row for drawing new tasks (only shown if project has no tasks)
-      if (projectTasks.length === 0) {
-        rows.push({ type: 'add', project });
-      }
+      // Add-row: always show a blank row below tasks for drag-to-create new subtasks
+      rows.push({ type: 'add', project });
     }
   }
 
