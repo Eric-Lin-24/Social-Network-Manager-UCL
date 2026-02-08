@@ -565,6 +565,14 @@ function _pplShowEditMemberModal(memberId) {
       <input type="text" id="ppl-edit-role" class="form-input" value="${_pplEscape(member.role)}">
     </div>
     <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" id="ppl-edit-email" class="form-input" value="${_pplEscape(member.email || '')}" placeholder="e.g. sarah@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Phone</label>
+      <input type="tel" id="ppl-edit-phone" class="form-input" value="${_pplEscape(member.phone || '')}" placeholder="e.g. +44 7700 900000">
+    </div>
+    <div class="form-group">
       <label class="form-label">Weekly Capacity (hours)</label>
       <input type="number" id="ppl-edit-capacity" class="form-input" value="${member.weekly_capacity_hours}" min="1" max="80">
     </div>
@@ -579,6 +587,8 @@ function _pplShowEditMemberModal(memberId) {
 async function _pplSubmitEditMember(memberId) {
   const name = document.getElementById('ppl-edit-name')?.value?.trim();
   const role = document.getElementById('ppl-edit-role')?.value?.trim() || '';
+  const email = document.getElementById('ppl-edit-email')?.value?.trim() || '';
+  const phone = document.getElementById('ppl-edit-phone')?.value?.trim() || '';
   const capacity = parseInt(document.getElementById('ppl-edit-capacity')?.value) || 40;
 
   if (!name) { showNotification('Please enter a name', 'warning'); return; }
@@ -587,7 +597,7 @@ async function _pplSubmitEditMember(memberId) {
     const resp = await fetch(`${AppState.authenticationUrl}/team-members/${memberId}?user_uuid=${AppState.userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, role, weekly_capacity_hours: capacity })
+      body: JSON.stringify({ name, role, email, phone, weekly_capacity_hours: capacity })
     });
     if (!resp.ok) throw new Error('Failed to update');
     closeTimelineModal();

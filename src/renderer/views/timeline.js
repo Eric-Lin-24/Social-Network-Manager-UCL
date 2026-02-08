@@ -2057,6 +2057,14 @@ function openCreateMemberModal() {
       <input type="text" id="tl-member-role" class="form-input" placeholder="e.g. Year 10, Team 10B">
     </div>
     <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" id="tl-member-email" class="form-input" placeholder="e.g. sarah@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Phone</label>
+      <input type="tel" id="tl-member-phone" class="form-input" placeholder="e.g. +44 7700 900000">
+    </div>
+    <div class="form-group">
       <label class="form-label">Weekly Hours</label>
       <input type="number" id="tl-member-capacity" class="form-input" value="25" min="1" max="80">
     </div>
@@ -2073,6 +2081,8 @@ function openCreateMemberModal() {
 async function submitCreateMember() {
   const name = document.getElementById('tl-member-name')?.value?.trim();
   const role = document.getElementById('tl-member-role')?.value?.trim() || '';
+  const email = document.getElementById('tl-member-email')?.value?.trim() || '';
+  const phone = document.getElementById('tl-member-phone')?.value?.trim() || '';
   const capacity = parseInt(document.getElementById('tl-member-capacity')?.value) || 40;
 
   if (!name) {
@@ -2084,7 +2094,7 @@ async function submitCreateMember() {
     const resp = await fetch(`${AppState.authenticationUrl}/team-members?user_uuid=${AppState.userId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, role, weekly_capacity_hours: capacity })
+      body: JSON.stringify({ name, role, email, phone, weekly_capacity_hours: capacity })
     });
     if (!resp.ok) throw new Error('Failed to create worker');
     closeTimelineModal();

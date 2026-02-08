@@ -79,12 +79,16 @@ class TeamMemberCreate(BaseModel):
     role: Optional[str] = ""
     avatar_initials: Optional[str] = None
     weekly_capacity_hours: Optional[int] = 40
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
 
 class TeamMemberUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
     avatar_initials: Optional[str] = None
     weekly_capacity_hours: Optional[int] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 class TeamMemberResponse(BaseModel):
     id: str
@@ -92,6 +96,8 @@ class TeamMemberResponse(BaseModel):
     role: str
     avatar_initials: str
     weekly_capacity_hours: int
+    email: str
+    phone: str
     owner_uuid: str
     created_at: datetime
 

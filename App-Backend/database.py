@@ -29,6 +29,15 @@ def _migrate_db():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE projects ADD COLUMN workspace_id TEXT"))
 
+    # Add email and phone to team_members table if missing
+    if "team_members" in inspector.get_table_names():
+        cols = [c["name"] for c in inspector.get_columns("team_members")]
+        with engine.begin() as conn:
+            if "email" not in cols:
+                conn.execute(text("ALTER TABLE team_members ADD COLUMN email TEXT DEFAULT ''"))
+            if "phone" not in cols:
+                conn.execute(text("ALTER TABLE team_members ADD COLUMN phone TEXT DEFAULT ''"))
+
 def init_db():
     """Initialize database tables and run migrations"""
     Base.metadata.create_all(bind=engine)
