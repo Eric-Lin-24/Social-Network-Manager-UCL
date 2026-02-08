@@ -67,9 +67,33 @@ function ensureCalendarStyles() {
     }
 
     .cal-cell.is-selected {
-      border-color: var(--accent-primary);
-      background: var(--accent-primary-soft);
-      box-shadow: 0 0 0 3px var(--accent-primary-soft);
+      border: 2px solid var(--accent-primary);
+      background: var(--accent-primary);
+      box-shadow: 0 0 0 4px var(--accent-primary-soft), 0 6px 16px rgba(0,0,0,0.3);
+      transform: scale(1.03);
+      z-index: 2;
+    }
+    .cal-cell.is-selected .cal-daynum,
+    .cal-cell.is-selected .cal-chip,
+    .cal-cell.is-selected .text-muted {
+      color: white !important;
+      border-color: rgba(255,255,255,0.3) !important;
+    }
+    .cal-cell.is-selected .cal-badge {
+      background: rgba(255,255,255,0.25);
+      border-color: rgba(255,255,255,0.4);
+      color: white;
+    }
+
+    .cal-cell.is-task-highlight {
+      border-color: var(--cal-highlight-color, rgba(99, 102, 241, 0.6));
+      border-width: 2px;
+      background: var(--cal-highlight-bg, rgba(99, 102, 241, 0.15));
+      box-shadow: inset 0 0 0 1px var(--cal-highlight-color, rgba(99, 102, 241, 0.3));
+    }
+    .cal-cell.is-task-highlight:hover {
+      background: var(--cal-highlight-bg-hover, rgba(99, 102, 241, 0.22));
+      box-shadow: inset 0 0 0 1px var(--cal-highlight-color, rgba(99, 102, 241, 0.5));
     }
 
     .cal-daynum {
@@ -518,7 +542,8 @@ function _calendarSetSelectedDaysFromSet(set) {
 
 function startDaySelectionMode() {
   AppState.daySelectionMode = true;
-  if (!Array.isArray(AppState.selectedScheduleDays)) AppState.selectedScheduleDays = [];
+  AppState.selectedScheduleDays = [];
+  AppState.calendarHighlightProjectId = null;
   renderCalendar();
 }
 
@@ -526,16 +551,19 @@ function cancelDaySelection() {
   AppState.daySelectionMode = false;
   AppState.calendarPrefillRecipients = null;
   AppState.calendarPrefillProjectName = null;
+  AppState.calendarHighlightProjectId = null;
+  AppState.selectedScheduleDays = [];
   renderCalendar();
 }
 
 function confirmDaySelectionAndGo() {
   const selected = Array.isArray(AppState.selectedScheduleDays) ? AppState.selectedScheduleDays : [];
   if (selected.length === 0) {
-    showNotification('Select at least one day first', 'warning');
+    showNotification('Select a day first', 'warning');
     return;
   }
   AppState.daySelectionMode = false;
+  AppState.calendarHighlightProjectId = null;
 
   // If we have prefilled recipients from a project "Send Message" flow,
   // pass them through schedulerFormState so the composer picks them up
@@ -805,10 +833,8 @@ function openDayDetailsModal(dateISO) {
 // -------------------------------
 function calendarDayClicked(dateISO) {
   if (AppState.daySelectionMode) {
-    const set = _calendarGetSelectedDaysSet();
-    if (set.has(dateISO)) set.delete(dateISO);
-    else set.add(dateISO);
-    _calendarSetSelectedDaysFromSet(set);
+    // Single-day selection: replace any previous selection
+    AppState.selectedScheduleDays = [dateISO];
     renderCalendar();
     return;
   }
@@ -864,6 +890,22 @@ function renderCalendar() {
   const isSelectionMode = AppState.daySelectionMode === true;
   const selectedSet = _calendarGetSelectedDaysSet();
 
+  // Build set of days to highlight when a project is targeted for messaging
+  const highlightDays = new Set();
+  let highlightColor = '#6366f1';
+  if (AppState.calendarHighlightProjectId) {
+    const hlProject = (AppState.timelineProjects || []).find(p => p.id === AppState.calendarHighlightProjectId);
+    if (hlProject) highlightColor = hlProject.color || '#6366f1';
+    const hlTasks = (AppState.timelineTasks || []).filter(t => t.project_id === AppState.calendarHighlightProjectId);
+    for (const t of hlTasks) {
+      if (!t.start_date || !t.end_date) continue;
+      const s = new Date(t.start_date + 'T00:00:00');
+      const e = new Date(t.end_date + 'T00:00:00');
+      const c = new Date(s);
+      while (c <= e) { highlightDays.add(_calISODateOnly(c)); c.setDate(c.getDate() + 1); }
+    }
+  }
+
   const selectionHeader = isSelectionMode ? `
     <div class="mb-4 p-4 rounded-xl" style="background: var(--accent-primary-soft); border: 1px solid var(--accent-primary);">
       <div class="flex items-center justify-between">
@@ -877,20 +919,15 @@ function renderCalendar() {
             </svg>
           </div>
           <div>
-            <p class="font-semibold" style="color: var(--accent-primary);">Select Days${AppState.calendarPrefillProjectName ? ` for "${_calEscapeHtml(AppState.calendarPrefillProjectName)}"` : ''}</p>
+            <p class="font-semibold" style="color: var(--accent-primary);">Pick a Day${AppState.calendarPrefillProjectName ? ` for "${_calEscapeHtml(AppState.calendarPrefillProjectName)}"` : ''}</p>
             <p class="text-xs text-muted">${AppState.calendarPrefillRecipients && AppState.calendarPrefillRecipients.length > 0
-              ? `Recipients: ${AppState.calendarPrefillRecipients.map(r => _calEscapeHtml(r.chatName)).join(', ')}. Pick the days to send on.`
-              : `Click days to highlight them. You can change months too.`
+              ? `Recipients: ${AppState.calendarPrefillRecipients.map(r => _calEscapeHtml(r.chatName)).join(', ')}. Pick the day to send on.${AppState.calendarHighlightProjectId ? ' Highlighted days show when the task is active.' : ''}`
+              : `Click a day to select it.${AppState.calendarHighlightProjectId ? ' Highlighted days show when the task is active.' : ''}`
             }</p>
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2" style="padding: 6px 12px; border-radius: 8px; background: var(--bg-secondary);">
-            <div style="width: 24px; height: 24px; border-radius: 6px; background: var(--accent-primary); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px;">
-              ${selectedSet.size}
-            </div>
-            <span class="text-sm">${selectedSet.size === 1 ? 'day selected' : 'days selected'}</span>
-          </div>
+          ${selectedSet.size > 0 ? `<span class="text-sm" style="color: var(--accent-primary); font-weight: 600;">${Array.from(selectedSet)[0]}</span>` : '<span class="text-sm text-muted">No day selected</span>'}
           <button class="btn btn-ghost btn-sm" onclick="cancelDaySelection()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -901,7 +938,7 @@ function renderCalendar() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
-            Done
+            Confirm
           </button>
         </div>
       </div>
@@ -936,8 +973,8 @@ function renderCalendar() {
 
           <div class="flex items-center gap-2">
             ${!isSelectionMode ? `
-              <button class="btn btn-secondary btn-sm" onclick="startDaySelectionMode()" title="Select multiple days to schedule messages on">
-                Select days
+              <button class="btn btn-secondary btn-sm" onclick="startDaySelectionMode()" title="Select a day to schedule a message on">
+                Select day
               </button>
             ` : ``}
           </div>
@@ -982,15 +1019,17 @@ function renderCalendar() {
 
             const more = (count > 2) ? `<span class="cal-chip" style="opacity:0.75;">+${count - 2} more</span>` : '';
 
+            const isHighlighted = highlightDays.has(dateISO);
             const hint = isSelectionMode
-              ? `Click to ${isSelected ? 'unselect' : 'select'} ${dateISO}`
-              : `Click to view messages for ${dateISO}`;
+              ? `Click to select ${dateISO}`
+              : `Click to view details for ${dateISO}`;
 
             return `
               <div
-                class="cal-cell ${isOutside ? 'is-outside' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}"
+                class="cal-cell ${isOutside ? 'is-outside' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''} ${isHighlighted ? 'is-task-highlight' : ''}"
                 onclick="calendarDayClicked('${dateISO}')"
                 title="${_calEscapeHtml(hint)}"
+                ${isHighlighted ? `style="--cal-highlight-color: ${highlightColor}55; --cal-highlight-bg: ${highlightColor}14; --cal-highlight-bg-hover: ${highlightColor}22;"` : ''}
               >
                 ${dotsHTML}
                 <div class="cal-daynum">
@@ -1008,8 +1047,8 @@ function renderCalendar() {
 
         <div class="cal-footer-note">
           ${isSelectionMode
-            ? `Select multiple days, then hit Done to open Scheduling with those days preloaded.`
-            : `Tip: Use “Select days” to schedule across multiple dates at once.`
+            ? `Click a day to select it, then hit Confirm to open Scheduling.`
+            : `Tip: Use “Select day” to pick a date for scheduling.`
           }
         </div>
       </div>
@@ -1232,9 +1271,12 @@ function sendMessageForProject(projectId) {
     }
   }
 
+  // Store project ID for highlighting task-span days on the calendar
+  AppState.calendarHighlightProjectId = projectId;
+
   // Enter day selection mode on the calendar
   AppState.daySelectionMode = true;
-  if (!Array.isArray(AppState.selectedScheduleDays)) AppState.selectedScheduleDays = [];
+  AppState.selectedScheduleDays = [];
 
   // Navigate to calendar if we're not already there
   if (AppState.currentView !== 'calendar') {
