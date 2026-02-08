@@ -1765,6 +1765,7 @@ textarea {
 .tl-pill-group {
   position: relative;
   display: flex;
+  width: fit-content;
   background: rgba(0, 0, 0, 0.25);
   border-radius: 10px;
   padding: 3px;
