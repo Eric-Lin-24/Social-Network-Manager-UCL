@@ -48,6 +48,8 @@ class TeamMember(Base):
     role = Column(String, default="")
     avatar_initials = Column(String, default="??")
     weekly_capacity_hours = Column(Integer, default=40)
+    email = Column(String, default="")
+    phone = Column(String, default="")
     owner_uuid = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

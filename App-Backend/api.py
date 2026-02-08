@@ -218,6 +218,8 @@ def create_team_member(member: TeamMemberCreate, user_uuid: str, db: Session = D
         role=member.role or "",
         avatar_initials=initials,
         weekly_capacity_hours=member.weekly_capacity_hours or 40,
+        email=member.email or "",
+        phone=member.phone or "",
         owner_uuid=user_uuid,
     )
     db.add(db_member)
