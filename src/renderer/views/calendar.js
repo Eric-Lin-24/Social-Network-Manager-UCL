@@ -572,7 +572,8 @@ function confirmDaySelectionAndGo() {
       recipients: AppState.calendarPrefillRecipients,
       selectedDays: selected,
       localFiles: [],
-      messageContent: ''
+      messageContent: '',
+      channel: AppState.composeChannel || 'email'
     };
     AppState.calendarPrefillRecipients = null;
     AppState.calendarPrefillProjectName = null;
@@ -1215,12 +1216,12 @@ function _calBuildProjectsSection(isSelectionMode) {
 
 // -----------------------------------------------
 // Send Message for a Project (Task)
+// Uses Gmail/Email by default, auto-pulls team member emails
 // -----------------------------------------------
-function sendMessageForProject(projectId) {
+async function sendMessageForProject(projectId) {
   const projects = AppState.timelineProjects || [];
   const tasks = AppState.timelineTasks || [];
   const members = AppState.timelineTeamMembers || [];
-  const subscribedChats = AppState.subscribedChats || [];
 
   const project = projects.find(p => p.id === projectId);
   if (!project) {
@@ -1233,41 +1234,77 @@ function sendMessageForProject(projectId) {
   const assigneeIds = [...new Set(subtasks.flatMap(t => t.assignee_id ? t.assignee_id.split(',') : []).filter(Boolean))];
   const assigneeMembers = assigneeIds.map(id => members.find(m => m.id === id)).filter(Boolean);
 
-  // Match team members to subscribed chats by name (case-insensitive)
-  const matchedRecipients = [];
-  for (const member of assigneeMembers) {
-    const memberNameLower = member.name.toLowerCase().trim();
-    const chat = subscribedChats.find(c => {
-      const chatName = (c.name || c.chat_name || '').toLowerCase().trim();
-      return chatName === memberNameLower || chatName.includes(memberNameLower) || memberNameLower.includes(chatName);
-    });
-    if (chat) {
-      matchedRecipients.push({
-        userId: chat.user_id || '',
-        chatId: chat.id || chat.chat_id || '',
-        chatName: chat.name || chat.chat_name || chat.id || '',
-        platform: chat.type || chat.platform || 'Group'
-      });
+  // Filter to only members who have an email address
+  const membersWithEmail = assigneeMembers.filter(m => m.email && m.email.trim() !== '');
+
+  // Auto-subscribe team member emails if not already subscribed
+  if (membersWithEmail.length > 0 && typeof AzureVMAPI !== 'undefined') {
+    try {
+      await AzureVMAPI.syncTeamMemberEmails();
+      // Refresh subscribed email users so we have the latest user_ids
+      await AzureVMAPI.fetchSubscribedEmailUsers();
+    } catch (err) {
+      console.warn('Failed to sync team member emails:', err);
     }
   }
+
+  // Match team members to subscribed email users by email address
+  const subscribedEmailUsers = AppState.subscribedEmailUsers || [];
+  const matchedRecipients = [];
+  const unmatchedMembers = [];
+
+  for (const member of membersWithEmail) {
+    const memberEmail = member.email.toLowerCase().trim();
+    const emailUser = subscribedEmailUsers.find(u =>
+      (u.email_address || '').toLowerCase().trim() === memberEmail
+    );
+    if (emailUser) {
+      matchedRecipients.push({
+        userId: emailUser.user_id || '',
+        chatId: emailUser.user_id || '',
+        chatName: member.name + ' (' + member.email + ')',
+        platform: 'email'
+      });
+    } else {
+      unmatchedMembers.push(member);
+    }
+  }
+
+  // Also note members without email
+  const membersWithoutEmail = assigneeMembers.filter(m => !m.email || m.email.trim() === '');
+
+  // Set compose channel to email
+  AppState.composeChannel = 'email';
 
   // Store the prefill recipients in AppState for the scheduling page to pick up
   AppState.calendarPrefillRecipients = matchedRecipients;
   AppState.calendarPrefillProjectName = project.name;
 
-  if (matchedRecipients.length === 0 && assigneeMembers.length > 0) {
+  // Build notification message
+  if (matchedRecipients.length > 0) {
+    const names = matchedRecipients.map(r => r.chatName);
+    let msg = `${matchedRecipients.length} email recipient${matchedRecipients.length !== 1 ? 's' : ''} matched: ${names.join(', ')}`;
+    if (membersWithoutEmail.length > 0) {
+      msg += `. ${membersWithoutEmail.length} member(s) have no email: ${membersWithoutEmail.map(m => m.name).join(', ')}`;
+    }
+    if (typeof showNotification === 'function') showNotification(msg, 'success');
+  } else if (membersWithEmail.length > 0) {
     if (typeof showNotification === 'function') {
       showNotification(
-        `No matching chats found for: ${assigneeMembers.map(m => m.name).join(', ')}. Recipients can be selected manually after choosing days.`,
+        `Could not match emails for: ${membersWithEmail.map(m => m.name).join(', ')}. Recipients can be selected manually.`,
         'info'
       );
     }
-  } else if (matchedRecipients.length > 0) {
+  } else if (assigneeMembers.length > 0) {
     if (typeof showNotification === 'function') {
       showNotification(
-        `${matchedRecipients.length} recipient${matchedRecipients.length !== 1 ? 's' : ''} matched: ${matchedRecipients.map(r => r.chatName).join(', ')}`,
-        'success'
+        `No team members with email addresses found for: ${assigneeMembers.map(m => m.name).join(', ')}. Add emails in the People tab.`,
+        'info'
       );
+    }
+  } else {
+    if (typeof showNotification === 'function') {
+      showNotification('No one is assigned to this task yet.', 'info');
     }
   }
 

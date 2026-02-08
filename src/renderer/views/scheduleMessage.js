@@ -319,15 +319,13 @@ async function downloadFileFromGoogleDriveFixed(fileId, fileName, mimeType) {
 
 function renderScheduleMessagePage() {
   const content = document.getElementById('content');
-  const channel = _getComposeChannel();
-  const subscribedChats = channel === 'email' ? _getRecipientSource() : (AppState.subscribedChats || []);
 
-  // Restore form state if returning from document selection, otherwise reset
+  // Restore form state if returning from document selection or project message flow
   const savedState = AppState.schedulerFormState;
   if (savedState) {
     selectedLocalFiles = savedState.localFiles || [];
     selectedRecipients = savedState.recipients || [];
-    // Restore channel
+    // Restore channel BEFORE reading it for the render
     if (savedState.channel) {
       AppState.composeChannel = savedState.channel;
     }
@@ -339,6 +337,9 @@ function renderScheduleMessagePage() {
     selectedLocalFiles = [];
     selectedRecipients = [];
   }
+
+  const channel = _getComposeChannel();
+  const subscribedChats = channel === 'email' ? _getRecipientSource() : (AppState.subscribedChats || []);
 
   content.innerHTML = `
     <div class="animate-slide-up">

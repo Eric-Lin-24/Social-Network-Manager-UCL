@@ -9,6 +9,7 @@ from datetime import datetime
 import uuid
 import os
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 import shutil
 from pathlib import Path
 
@@ -330,6 +331,48 @@ def delete_timeline_task_api(task_id: str, user_uuid: str, db: Session = Depends
     db.delete(db_task)
     db.commit()
     return {"deleted": True}
+
+
+# ============================================
+# PROJECT ASSIGNEE EMAILS ENDPOINT
+# ============================================
+
+@app.get("/projects/{project_id}/assignee-emails")
+def get_project_assignee_emails(project_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    """
+    Get email addresses of all team members assigned to tasks in a project.
+    Returns a list of {name, email, member_id} for members with email addresses.
+    """
+    # Get all tasks for this project
+    tasks = db.query(TimelineTask).filter(
+        TimelineTask.project_id == project_id,
+        TimelineTask.owner_uuid == user_uuid
+    ).all()
+
+    # Collect unique assignee IDs
+    assignee_ids = set()
+    for task in tasks:
+        if task.assignee_id:
+            for aid in task.assignee_id.split(","):
+                aid = aid.strip()
+                if aid:
+                    assignee_ids.add(aid)
+
+    # Get team members with emails
+    results = []
+    for aid in assignee_ids:
+        member = db.query(TeamMember).filter(
+            TeamMember.id == aid,
+            TeamMember.owner_uuid == user_uuid
+        ).first()
+        if member and member.email and member.email.strip():
+            results.append({
+                "member_id": member.id,
+                "name": member.name,
+                "email": member.email
+            })
+
+    return results
 
 
 def create_app():

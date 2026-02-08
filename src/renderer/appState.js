@@ -32,7 +32,7 @@ const AppState = {
   scheduledEmails: [],
   subscribedEmailUsers: [],
   loadingSubscribedEmailUsers: false,
-  composeChannel: 'telegram', // 'telegram' | 'email'
+  composeChannel: 'email', // 'telegram' | 'email'
 
   // File selection mode (for scheduler -> documents flow)
   fileSelectionMode: false,
