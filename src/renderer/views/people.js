@@ -39,6 +39,67 @@ function _pplSearchTeams(query) {
   renderPeople();
 }
 
+// ===== Message Helpers =====
+
+/**
+ * Navigate to the message composer with one or more recipients pre-selected.
+ * Tries to match team member emails against subscribedEmailUsers;
+ * falls back to constructing a recipient entry from the member data.
+ */
+function _pplMessageMember(memberId) {
+  event && event.stopPropagation();
+  const member = (AppState.timelineTeamMembers || []).find(m => m.id === memberId);
+  if (!member) { showNotification('Member not found', 'error'); return; }
+  if (!member.email) { showNotification('This member has no email set. Edit their profile to add one.', 'warning'); return; }
+  _pplNavigateToComposer([member]);
+}
+
+function _pplMessageTeam(teamId) {
+  event && event.stopPropagation();
+  const team = (AppState.teams || []).find(t => t.id === teamId);
+  if (!team) { showNotification('Team not found', 'error'); return; }
+  const mIds = (team.member_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+  const allMembers = AppState.timelineTeamMembers || [];
+  const teamMembers = mIds.map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  const withEmail = teamMembers.filter(m => m.email);
+  if (withEmail.length === 0) {
+    showNotification('No team members have an email set.', 'warning');
+    return;
+  }
+  _pplNavigateToComposer(withEmail);
+}
+
+function _pplNavigateToComposer(members) {
+  const emailUsers = AppState.subscribedEmailUsers || [];
+  const recipients = members.map(m => {
+    // Try to match against subscribed email users
+    const match = emailUsers.find(u =>
+      (u.email_address && u.email_address.toLowerCase() === (m.email || '').toLowerCase()) ||
+      (String(u.user_id) === String(m.id))
+    );
+    if (match) {
+      return {
+        userId: match.user_id,
+        chatId: match.user_id,
+        chatName: match.user_name || match.email_address || m.name,
+        platform: 'email'
+      };
+    }
+    // Fallback: construct from member data
+    return {
+      userId: m.email,
+      chatId: m.email,
+      chatName: m.name,
+      platform: 'email'
+    };
+  });
+
+  AppState.composeChannel = 'email';
+  AppState.messagePrefillRecipients = recipients;
+  AppState.schedulerFormState = null; // clear any stale form state
+  navigateTo('scheduleMessage');
+}
+
 // ===== Tab Navigation =====
 
 function _pplSwitchTab(tab) {
@@ -170,9 +231,16 @@ function _pplBuildMemberList() {
           ${(m.email) ? `<div class="ppl-card-email">${_pplEscape(m.email)}</div>` : ''}
           <div class="ppl-card-tags">${groupTags}${extraGroups}</div>
         </div>
-        <div class="ppl-card-meta">
-          <span class="ppl-card-stat">${activeTasks} active task${activeTasks !== 1 ? 's' : ''}</span>
-          <span class="ppl-card-capacity">${m.weekly_capacity_hours || 40}h/wk</span>
+        <div class="ppl-card-actions">
+          <button class="ppl-msg-btn" title="Send message" onclick="_pplMessageMember('${m.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+            </svg>
+          </button>
+          <div class="ppl-card-meta">
+            <span class="ppl-card-stat">${activeTasks} active task${activeTasks !== 1 ? 's' : ''}</span>
+            <span class="ppl-card-capacity">${m.weekly_capacity_hours || 40}h/wk</span>
+          </div>
         </div>
         <svg class="ppl-card-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="9 18 15 12 9 6"/>
@@ -285,6 +353,10 @@ function _pplBuildMemberProfile(memberId) {
               </div>
             </div>
 
+            <button class="ppl-message-btn" onclick="_pplMessageMember('${member.id}')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Send Message
+            </button>
             <button class="ppl-edit-btn" onclick="_pplOpenEditProfile('${member.id}')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Edit Profile
@@ -480,6 +552,11 @@ function _pplBuildTeamList() {
             <span class="ppl-team-card-count">${memberCount} member${memberCount !== 1 ? 's' : ''}</span>
           </div>
         </div>
+        <button class="ppl-msg-btn" title="Message team" onclick="_pplMessageTeam('${team.id}')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+          </svg>
+        </button>
         <svg class="ppl-card-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="9 18 15 12 9 6"/>
         </svg>
@@ -603,6 +680,10 @@ function _pplBuildTeamDetail(teamId) {
               </div>
             </div>
 
+            <button class="ppl-message-btn" onclick="_pplMessageTeam('${team.id}')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Message Team
+            </button>
             <button class="ppl-edit-btn" onclick="_pplOpenEditTeamModal('${team.id}')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Edit Team
@@ -872,4 +953,7 @@ if (typeof window !== 'undefined') {
   window._pplOpenEditTeamModal = _pplOpenEditTeamModal;
   window._pplSubmitEditTeam = _pplSubmitEditTeam;
   window._pplDeleteTeam = _pplDeleteTeam;
+  window._pplMessageMember = _pplMessageMember;
+  window._pplMessageTeam = _pplMessageTeam;
+  window._pplNavigateToComposer = _pplNavigateToComposer;
 }

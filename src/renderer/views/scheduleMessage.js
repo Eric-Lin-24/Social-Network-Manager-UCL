@@ -333,6 +333,11 @@ function renderScheduleMessagePage() {
     if (savedState.selectedDays && savedState.selectedDays.length > 0) {
       AppState.selectedScheduleDays = savedState.selectedDays;
     }
+  } else if (Array.isArray(AppState.messagePrefillRecipients) && AppState.messagePrefillRecipients.length > 0) {
+    // Pre-fill recipients from People page (member / team message button)
+    selectedLocalFiles = [];
+    selectedRecipients = AppState.messagePrefillRecipients.slice();
+    AppState.messagePrefillRecipients = null;
   } else {
     selectedLocalFiles = [];
     selectedRecipients = [];
@@ -700,6 +705,11 @@ function renderScheduleMessagePage() {
     }
   } catch (e) {
     console.warn('Form state restore failed:', e);
+  }
+
+  // Always render recipients list (handles prefill from People page, etc.)
+  if (selectedRecipients.length > 0) {
+    renderRecipientsList();
   }
 }
 
