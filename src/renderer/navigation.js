@@ -186,8 +186,8 @@ function renderApp() {
       if (typeof renderCalendar === 'function') renderCalendar();
       else {
         // fallback
-        AppState.currentView = 'dashboard';
-        if (typeof renderDashboard === 'function') renderDashboard();
+        AppState.currentView = 'timeline';
+        if (typeof renderTimeline === 'function') renderTimeline();
       }
       break;
 
@@ -213,8 +213,10 @@ function renderApp() {
       break;
 
     default:
-      AppState.currentView = 'dashboard';
-      if (typeof renderDashboard === 'function') renderDashboard();
+      AppState.currentView = 'timeline';
+      AppState.timelineSelectedProject = null;
+      AppState.timelineFilterProject = '';
+      if (typeof renderTimeline === 'function') renderTimeline();
   }
 }
 

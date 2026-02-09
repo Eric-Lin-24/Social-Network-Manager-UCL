@@ -5,7 +5,7 @@
 
 const AppState = {
   // Current view
-  currentView: 'dashboard',
+  currentView: 'timeline',
 
   // Documents
   documents: [],
