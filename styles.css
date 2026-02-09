@@ -151,6 +151,8 @@ p { color: var(--text-secondary); }
   flex-shrink: 0;
   position: relative;
   z-index: 10;
+  transition: width var(--transition-slow);
+  overflow: hidden;
 }
 
 .sidebar::after {
@@ -165,6 +167,186 @@ p { color: var(--text-secondary); }
     rgba(20, 184, 166, 0.2) 50%,
     transparent 100%
   );
+}
+
+/* Sidebar Toggle Button */
+.sidebar-toggle {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+}
+
+.sidebar-toggle:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+/* Expand button in header (hidden by default) */
+.sidebar-expand-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.sidebar-expand-btn:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+/* === Collapsed Sidebar State === */
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed);
+}
+
+.sidebar.collapsed .brand-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sidebar.collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
+.sidebar.collapsed .sidebar-header {
+  padding: 0 18px 12px;
+  justify-content: center;
+  gap: 0;
+  position: relative;
+  overflow: visible;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -20px;
+  width: 28px;
+  height: 28px;
+  z-index: 2;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  padding: 24px 10px;
+  align-items: center;
+}
+
+.sidebar.collapsed .nav-section-title {
+  font-size: 0;
+  padding: 8px 0;
+  text-align: center;
+  overflow: hidden;
+  height: 16px;
+}
+
+.sidebar.collapsed .nav-section-title::after {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0 auto;
+}
+
+.sidebar.collapsed .nav-item {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  position: relative;
+}
+
+.sidebar.collapsed .nav-item span {
+  display: none;
+}
+
+.sidebar.collapsed .nav-item .nav-badge {
+  display: none;
+}
+
+/* Tooltip on hover for collapsed nav items */
+.sidebar.collapsed .nav-item::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+}
+
+.sidebar.collapsed .nav-item:hover::after {
+  opacity: 1;
+}
+
+.sidebar.collapsed .nav-item.active::before {
+  width: 3px;
+  height: 20px;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  padding: 12px 10px;
+}
+
+.sidebar.collapsed .user-card {
+  padding: 8px;
+  justify-content: center;
+}
+
+.sidebar.collapsed .user-info {
+  display: none;
+}
+
+/* Show expand button when sidebar is collapsed */
+.sidebar.collapsed ~ .main-content .sidebar-expand-btn {
+  display: flex;
+}
+
+/* Smooth transitions for inner elements */
+.brand-text,
+.nav-item span,
+.nav-badge,
+.user-info {
+  transition: opacity var(--transition-base), width var(--transition-base);
+}
+
+.sidebar-toggle svg {
+  transition: transform var(--transition-base);
 }
 
 .sidebar-header {
@@ -390,6 +572,12 @@ p { color: var(--text-secondary); }
 }
 
 .header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-left-text {
   display: flex;
   flex-direction: column;
   gap: 4px;
