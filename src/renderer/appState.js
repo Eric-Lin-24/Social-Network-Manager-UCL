@@ -88,6 +88,9 @@ const AppState = {
   // Workspaces (User-facing: "Projects") - top-level grouping
   timelineWorkspaces: [],
 
+  // Teams (Groups/Classes of Members)
+  teams: [],
+
   // Timeline Project Index
   timelineSelectedProject: null, // null = show project index, string = workspace id to show Gantt for
   timelineProjectSearch: '',

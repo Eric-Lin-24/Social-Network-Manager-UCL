@@ -220,6 +220,23 @@ function _tlAutoStatus(startDate, endDate) {
   return 'in_progress';
 }
 
+// ===== Team Toggle Helper =====
+// When a team checkbox is toggled, auto-check/uncheck all its member checkboxes
+
+function _tlToggleTeamMembers(teamCheckbox, memberCheckboxName) {
+  const memberIds = (teamCheckbox.dataset.memberIds || '').split(',').filter(Boolean);
+  const isChecked = teamCheckbox.checked;
+  teamCheckbox.parentElement.classList.toggle('selected', isChecked);
+
+  memberIds.forEach(id => {
+    const cb = document.querySelector(`input[name="${memberCheckboxName}"][value="${id}"]`);
+    if (cb) {
+      cb.checked = isChecked;
+      cb.parentElement.classList.toggle('selected', isChecked);
+    }
+  });
+}
+
 // ===== Data Fetching =====
 
 async function timelineFetchWorkspaces() {
@@ -252,13 +269,21 @@ async function timelineFetchTasks() {
   AppState.timelineTasks = await resp.json();
 }
 
+async function timelineFetchTeams() {
+  if (!AppState.userId) return;
+  const resp = await fetch(`${AppState.authenticationUrl}/teams?user_uuid=${AppState.userId}`);
+  if (!resp.ok) throw new Error('Failed to fetch teams');
+  AppState.teams = await resp.json();
+}
+
 async function timelineRefreshData() {
   try {
     await Promise.all([
       timelineFetchWorkspaces(),
       timelineFetchProjects(),
       timelineFetchMembers(),
-      timelineFetchTasks()
+      timelineFetchTasks(),
+      timelineFetchTeams()
     ]);
   } catch (e) {
     console.error('Timeline data refresh failed:', e);
@@ -2100,7 +2125,12 @@ async function submitCreateMember() {
     closeTimelineModal();
     showNotification('Worker added', 'success');
     await timelineRefreshData();
-    renderTimeline();
+    if (AppState._peopleReturnAfterModal) {
+      AppState._peopleReturnAfterModal = false;
+      renderPeople();
+    } else {
+      renderTimeline();
+    }
   } catch (e) {
     showNotification('Error: ' + e.message, 'error');
   }
@@ -2111,6 +2141,7 @@ async function submitCreateMember() {
 function openCreateTaskModal(prefillProjectId, prefillAssignee) {
   const allProjects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
+  const teams = AppState.teams || [];
 
   const workspaceId = AppState.timelineSelectedProject;
   const projects = workspaceId
@@ -2127,6 +2158,20 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
   ).join('');
 
   const prefillList = prefillAssignee ? prefillAssignee.split(',') : [];
+
+  // Team checkboxes
+  const teamCheckboxes = teams.length > 0 ? teams.map(t => {
+    const mIds = (t.member_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    return `<label class="tl-assignee-chip tl-team-chip">
+      <input type="checkbox" name="tl-task-teams" value="${t.id}" data-member-ids="${mIds.join(',')}" onchange="_tlToggleTeamMembers(this, 'tl-task-assignees')">
+      <span class="tl-assignee-avatar" style="background: ${t.color || '#14b8a6'}; color: white;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+      </span>
+      <span class="tl-assignee-name">${_tlEscape(t.name)}</span>
+      <span class="tl-team-count">${mIds.length}</span>
+    </label>`;
+  }).join('') : '';
+
   const memberCheckboxes = members.length > 0 ? members.map(m => {
     const checked = prefillList.includes(m.id) ? 'checked' : '';
     return `<label class="tl-assignee-chip ${checked ? 'selected' : ''}">
@@ -2134,10 +2179,17 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
       <span class="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
       <span class="tl-assignee-name">${_tlEscape(m.name)}</span>
     </label>`;
-  }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No teams yet</span>';
+  }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No members yet</span>';
 
   const today = _tlDateToISO(new Date());
   const nextWeek = _tlDateToISO(_tlAddDays(new Date(), 7));
+
+  const teamsSection = teamCheckboxes ? `
+    <div class="form-group">
+      <label class="form-label">Assign Teams <span style="color: var(--text-muted); font-weight: 400;">(auto-selects all members)</span></label>
+      <div class="tl-assignee-grid">${teamCheckboxes}</div>
+    </div>
+  ` : '';
 
   const body = `
     <div class="form-group">
@@ -2158,8 +2210,9 @@ function openCreateTaskModal(prefillProjectId, prefillAssignee) {
         <input type="date" id="tl-task-end" class="form-input" value="${nextWeek}">
       </div>
     </div>
+    ${teamsSection}
     <div class="form-group">
-      <label class="form-label">Assigned Teams</label>
+      <label class="form-label">Assign Individual Members</label>
       <div class="tl-assignee-grid">${memberCheckboxes}</div>
     </div>
     <div class="form-group">
@@ -2231,6 +2284,7 @@ function openEditTaskModal(taskId) {
 
   const allProjects = AppState.timelineProjects || [];
   const members = AppState.timelineTeamMembers || [];
+  const teams = AppState.teams || [];
 
   const workspaceId = AppState.timelineSelectedProject;
   const projects = workspaceId
@@ -2242,6 +2296,23 @@ function openEditTaskModal(taskId) {
   ).join('');
 
   const currentAssignees = task.assignee_id ? task.assignee_id.split(',') : [];
+
+  // Team checkboxes for edit modal
+  const teamCheckboxes = teams.length > 0 ? teams.map(t => {
+    const mIds = (t.member_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    // Check if all team members are currently assigned
+    const allAssigned = mIds.length > 0 && mIds.every(id => currentAssignees.includes(id));
+    const checked = allAssigned ? 'checked' : '';
+    return `<label class="tl-assignee-chip tl-team-chip ${checked ? 'selected' : ''}">
+      <input type="checkbox" name="tl-edit-teams" value="${t.id}" data-member-ids="${mIds.join(',')}" ${checked} onchange="_tlToggleTeamMembers(this, 'tl-edit-assignees')">
+      <span class="tl-assignee-avatar" style="background: ${t.color || '#14b8a6'}; color: white;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+      </span>
+      <span class="tl-assignee-name">${_tlEscape(t.name)}</span>
+      <span class="tl-team-count">${mIds.length}</span>
+    </label>`;
+  }).join('') : '';
+
   const memberCheckboxes = members.length > 0 ? members.map(m => {
     const checked = currentAssignees.includes(m.id) ? 'checked' : '';
     return `<label class="tl-assignee-chip ${checked ? 'selected' : ''}">
@@ -2249,7 +2320,7 @@ function openEditTaskModal(taskId) {
       <span class="tl-assignee-avatar">${_tlEscape(m.avatar_initials)}</span>
       <span class="tl-assignee-name">${_tlEscape(m.name)}</span>
     </label>`;
-  }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No teams yet</span>';
+  }).join('') : '<span style="color: var(--text-muted); font-size: 0.8125rem;">No members yet</span>';
 
   // Parse description JSON (notes + files)
   let notes = task.description || '';
@@ -2278,6 +2349,13 @@ function openEditTaskModal(taskId) {
     </div>
   `).join('');
 
+  const teamsSection = teamCheckboxes ? `
+    <div class="form-group">
+      <label class="form-label">Assign Teams <span style="color: var(--text-muted); font-weight: 400;">(auto-selects all members)</span></label>
+      <div class="tl-assignee-grid">${teamCheckboxes}</div>
+    </div>
+  ` : '';
+
   const body = `
     <div class="form-group">
       <label class="form-label">Task Name</label>
@@ -2297,8 +2375,9 @@ function openEditTaskModal(taskId) {
         <input type="date" id="tl-edit-end" class="form-input" value="${task.end_date}">
       </div>
     </div>
+    ${teamsSection}
     <div class="form-group">
-      <label class="form-label">Assigned Teams</label>
+      <label class="form-label">Assign Individual Members</label>
       <div class="tl-assignee-grid">${memberCheckboxes}</div>
     </div>
     <div class="form-group">
@@ -2462,6 +2541,7 @@ if (typeof window !== 'undefined') {
   window.submitEditTask = submitEditTask;
   window.deleteTimelineTask = deleteTimelineTask;
   window.closeTimelineModal = closeTimelineModal;
+  window._tlToggleTeamMembers = _tlToggleTeamMembers;
   window.openCreateProjectModal = openCreateProjectModal;
   window.submitCreateProject = submitCreateProject;
   window.openCreateMemberModal = openCreateMemberModal;

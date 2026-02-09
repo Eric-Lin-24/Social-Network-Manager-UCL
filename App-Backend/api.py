@@ -14,7 +14,7 @@ import shutil
 from pathlib import Path
 
 from database import get_db, init_db, get_user_by_username
-from models import Workspace, Project, TeamMember, TimelineTask
+from models import Workspace, Project, TeamMember, TimelineTask, Team
 from schemas import (
     User,
     UserCreate,
@@ -23,6 +23,7 @@ from schemas import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     TeamMemberCreate, TeamMemberUpdate, TeamMemberResponse,
     TimelineTaskCreate, TimelineTaskUpdate, TimelineTaskResponse,
+    TeamCreate, TeamUpdate, TeamResponse,
 )
 
 from auth import create_user, verify_password
@@ -329,6 +330,61 @@ def delete_timeline_task_api(task_id: str, user_uuid: str, db: Session = Depends
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     db.delete(db_task)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# TEAM ENDPOINTS (Groups / Classes of Members)
+# ============================================
+
+@app.post("/teams", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
+def create_team(team: TeamCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_team = Team(
+        id=str(uuid.uuid4()),
+        name=team.name,
+        description=team.description or "",
+        color=team.color or "#14b8a6",
+        member_ids=team.member_ids or "",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_team)
+    db.commit()
+    db.refresh(db_team)
+    return db_team
+
+
+@app.get("/teams", response_model=List[TeamResponse])
+def list_teams(user_uuid: str, db: Session = Depends(get_db)):
+    return db.query(Team).filter(Team.owner_uuid == user_uuid).all()
+
+
+@app.get("/teams/{team_id}", response_model=TeamResponse)
+def get_team(team_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    t = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return t
+
+
+@app.put("/teams/{team_id}", response_model=TeamResponse)
+def update_team(team_id: str, team: TeamUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_team = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
+    if not db_team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    for field, value in team.dict(exclude_unset=True).items():
+        setattr(db_team, field, value)
+    db.commit()
+    db.refresh(db_team)
+    return db_team
+
+
+@app.delete("/teams/{team_id}")
+def delete_team(team_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_team = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
+    if not db_team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    db.delete(db_team)
     db.commit()
     return {"deleted": True}
 

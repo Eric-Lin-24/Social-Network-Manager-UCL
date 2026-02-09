@@ -142,3 +142,30 @@ class TimelineTaskResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- Team Schemas (Groups/Classes of Members) ---
+
+class TeamCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    color: Optional[str] = "#14b8a6"
+    member_ids: Optional[str] = ""  # Comma-separated member IDs
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+    member_ids: Optional[str] = None
+
+class TeamResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    color: str
+    member_ids: str
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
