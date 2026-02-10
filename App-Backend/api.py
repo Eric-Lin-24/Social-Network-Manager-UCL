@@ -11,6 +11,8 @@ import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
+import logging
+import requests as http_requests
 from pathlib import Path
 
 from database import get_db, init_db, get_user_by_username
@@ -50,6 +52,33 @@ app.add_middleware(
 
 # Base URL for file access
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
+# Telegram-Engine URL (mailing list service)
+TELEGRAM_ENGINE_URL = os.getenv("TELEGRAM_ENGINE_URL", "http://localhost:8000")
+
+logger = logging.getLogger(__name__)
+
+
+def _sync_email_to_mailing_list(email: str, name: str):
+    """Subscribe an email address to the Telegram-Engine mailing list.
+    Best-effort: failures are logged but do not block the caller."""
+    if not email:
+        return
+    try:
+        resp = http_requests.post(
+            f"{TELEGRAM_ENGINE_URL}/subscribe-email-user",
+            json={"email_address": email, "user_name": name},
+            timeout=5,
+        )
+        if resp.status_code == 201 or resp.status_code == 200:
+            logger.info("Subscribed %s to mailing list", email)
+        elif resp.status_code == 400:
+            # Already subscribed – not an error
+            logger.debug("Email %s already on mailing list", email)
+        else:
+            logger.warning("Mailing-list subscribe returned %s: %s", resp.status_code, resp.text)
+    except Exception as exc:
+        logger.warning("Could not reach Telegram-Engine to subscribe %s: %s", email, exc)
 
 
 @app.on_event("startup")
@@ -227,6 +256,10 @@ def create_team_member(member: TeamMemberCreate, user_uuid: str, db: Session = D
     db.add(db_member)
     db.commit()
     db.refresh(db_member)
+
+    # Auto-subscribe to mailing list if email provided
+    _sync_email_to_mailing_list(db_member.email, db_member.name)
+
     return db_member
 
 
@@ -248,10 +281,16 @@ def update_team_member(member_id: str, member: TeamMemberUpdate, user_uuid: str,
     db_m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
     if not db_m:
         raise HTTPException(status_code=404, detail="Team member not found")
-    for field, value in member.dict(exclude_unset=True).items():
+    update_data = member.dict(exclude_unset=True)
+    for field, value in update_data.items():
         setattr(db_m, field, value)
     db.commit()
     db.refresh(db_m)
+
+    # If email was updated, subscribe the new address to the mailing list
+    if "email" in update_data and db_m.email:
+        _sync_email_to_mailing_list(db_m.email, db_m.name)
+
     return db_m
 
 

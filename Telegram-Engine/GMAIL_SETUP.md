@@ -40,7 +40,7 @@ The Gmail bot allows you to schedule and send emails through Gmail's SMTP server
 3. Select device: **Other (Custom name)**
 4. Enter name: `Scheduled Message System` (or any name you prefer)
 5. Click **Generate**
-6. Copy the **16-character password** (remove spaces)
+6. Copy the **16-character passwornpd** (remove spaces)
 7. **Save this password securely** - you won't be able to see it again
 
 ### Step 3: Configure Environment Variables
