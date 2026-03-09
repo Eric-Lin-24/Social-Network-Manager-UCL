@@ -1,7 +1,8 @@
 """
 Main entry point for the Scheduled Message System.
 
-This module starts both the FastAPI server and Telegram bot concurrently.
+This module starts the FastAPI server and Telegram bot concurrently.
+Supports both Telegram and Email message delivery.
 Run with: python main.py
 """
 import multiprocessing
@@ -71,11 +72,12 @@ def main():
             time.sleep(1)  # Give Telegram bot a moment to start
 
             logger.info("\n" + "="*60)
-            logger.info("Both services are running successfully!")
+            logger.info("All services are running successfully!")
             logger.info("  - FastAPI: http://localhost:8000")
             logger.info("  - API Docs: http://localhost:8000/docs")
             logger.info("  - Telegram Bot: Running in polling mode")
-            logger.info("\nPress Ctrl+C to stop both services")
+            logger.info("  - Email Scheduler: Active (configure Gmail in .env)")
+            logger.info("\nPress Ctrl+C to stop all services")
             logger.info("="*60 + "\n")
 
         # Monitor processes and restart if they crash

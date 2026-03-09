@@ -9,14 +9,23 @@ from datetime import datetime
 import uuid
 import os
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 import shutil
+import logging
+import requests as http_requests
 from pathlib import Path
 
 from database import get_db, init_db, get_user_by_username
+from models import Workspace, Project, TeamMember, TimelineTask, Team
 from schemas import (
     User,
     UserCreate,
-    UserSignIn
+    UserSignIn,
+    WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse,
+    ProjectCreate, ProjectUpdate, ProjectResponse,
+    TeamMemberCreate, TeamMemberUpdate, TeamMemberResponse,
+    TimelineTaskCreate, TimelineTaskUpdate, TimelineTaskResponse,
+    TeamCreate, TeamUpdate, TeamResponse,
 )
 
 from auth import create_user, verify_password
@@ -32,8 +41,44 @@ app = FastAPI(
 )
 
 
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Base URL for file access
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
+# Telegram-Engine URL (mailing list service)
+TELEGRAM_ENGINE_URL = os.getenv("TELEGRAM_ENGINE_URL", "http://localhost:8000")
+
+logger = logging.getLogger(__name__)
+
+
+def _sync_email_to_mailing_list(email: str, name: str):
+    """Subscribe an email address to the Telegram-Engine mailing list.
+    Best-effort: failures are logged but do not block the caller."""
+    if not email:
+        return
+    try:
+        resp = http_requests.post(
+            f"{TELEGRAM_ENGINE_URL}/subscribe-email-user",
+            json={"email_address": email, "user_name": name},
+            timeout=5,
+        )
+        if resp.status_code == 201 or resp.status_code == 200:
+            logger.info("Subscribed %s to mailing list", email)
+        elif resp.status_code == 400:
+            # Already subscribed – not an error
+            logger.debug("Email %s already on mailing list", email)
+        else:
+            logger.warning("Mailing-list subscribe returned %s: %s", resp.status_code, resp.text)
+    except Exception as exc:
+        logger.warning("Could not reach Telegram-Engine to subscribe %s: %s", email, exc)
 
 
 @app.on_event("startup")
@@ -73,6 +118,356 @@ async def root():
         "docs": "/docs",
         "redoc": "/redoc"
     }
+
+
+# ============================================
+# WORKSPACE ENDPOINTS (User-facing: "Project")
+# ============================================
+
+@app.post("/workspaces", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
+def create_workspace(ws: WorkspaceCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_ws = Workspace(
+        id=str(uuid.uuid4()),
+        name=ws.name,
+        description=ws.description or "",
+        color=ws.color or "#14b8a6",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_ws)
+    db.commit()
+    db.refresh(db_ws)
+    return db_ws
+
+
+@app.get("/workspaces", response_model=List[WorkspaceResponse])
+def list_workspaces(user_uuid: str, db: Session = Depends(get_db)):
+    return db.query(Workspace).filter(Workspace.owner_uuid == user_uuid).all()
+
+
+@app.get("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+def get_workspace(workspace_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.owner_uuid == user_uuid).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return ws
+
+
+@app.put("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+def update_workspace(workspace_id: str, ws: WorkspaceUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.owner_uuid == user_uuid).first()
+    if not db_ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    for field, value in ws.dict(exclude_unset=True).items():
+        setattr(db_ws, field, value)
+    db.commit()
+    db.refresh(db_ws)
+    return db_ws
+
+
+@app.delete("/workspaces/{workspace_id}")
+def delete_workspace(workspace_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.owner_uuid == user_uuid).first()
+    if not db_ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    # Cascade: unlink projects (set workspace_id to None)
+    db.query(Project).filter(Project.workspace_id == workspace_id, Project.owner_uuid == user_uuid).update({"workspace_id": None})
+    db.delete(db_ws)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# PROJECT ENDPOINTS (User-facing: "Task")
+# ============================================
+
+@app.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+def create_project(project: ProjectCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_project = Project(
+        id=str(uuid.uuid4()),
+        name=project.name,
+        color=project.color or "#14b8a6",
+        workspace_id=project.workspace_id,
+        owner_uuid=user_uuid,
+    )
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+
+@app.get("/projects", response_model=List[ProjectResponse])
+def list_projects(user_uuid: str, workspace_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Project).filter(Project.owner_uuid == user_uuid)
+    if workspace_id:
+        query = query.filter(Project.workspace_id == workspace_id)
+    return query.all()
+
+
+@app.get("/projects/{project_id}", response_model=ProjectResponse)
+def get_project(project_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    proj = db.query(Project).filter(Project.id == project_id, Project.owner_uuid == user_uuid).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return proj
+
+
+@app.put("/projects/{project_id}", response_model=ProjectResponse)
+def update_project(project_id: str, project: ProjectUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_proj = db.query(Project).filter(Project.id == project_id, Project.owner_uuid == user_uuid).first()
+    if not db_proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    for field, value in project.dict(exclude_unset=True).items():
+        setattr(db_proj, field, value)
+    db.commit()
+    db.refresh(db_proj)
+    return db_proj
+
+
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_proj = db.query(Project).filter(Project.id == project_id, Project.owner_uuid == user_uuid).first()
+    if not db_proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete(db_proj)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# TEAM MEMBER ENDPOINTS
+# ============================================
+
+@app.post("/team-members", response_model=TeamMemberResponse, status_code=status.HTTP_201_CREATED)
+def create_team_member(member: TeamMemberCreate, user_uuid: str, db: Session = Depends(get_db)):
+    initials = member.avatar_initials
+    if not initials:
+        parts = member.name.strip().split()
+        initials = (parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")).upper()
+    db_member = TeamMember(
+        id=str(uuid.uuid4()),
+        name=member.name,
+        role=member.role or "",
+        avatar_initials=initials,
+        weekly_capacity_hours=member.weekly_capacity_hours or 40,
+        email=member.email or "",
+        phone=member.phone or "",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_member)
+    db.commit()
+    db.refresh(db_member)
+
+    # Auto-subscribe to mailing list if email provided
+    _sync_email_to_mailing_list(db_member.email, db_member.name)
+
+    return db_member
+
+
+@app.get("/team-members", response_model=List[TeamMemberResponse])
+def list_team_members(user_uuid: str, db: Session = Depends(get_db)):
+    return db.query(TeamMember).filter(TeamMember.owner_uuid == user_uuid).all()
+
+
+@app.get("/team-members/{member_id}", response_model=TeamMemberResponse)
+def get_team_member(member_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    return m
+
+
+@app.put("/team-members/{member_id}", response_model=TeamMemberResponse)
+def update_team_member(member_id: str, member: TeamMemberUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
+    if not db_m:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    update_data = member.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_m, field, value)
+    db.commit()
+    db.refresh(db_m)
+
+    # If email was updated, subscribe the new address to the mailing list
+    if "email" in update_data and db_m.email:
+        _sync_email_to_mailing_list(db_m.email, db_m.name)
+
+    return db_m
+
+
+@app.delete("/team-members/{member_id}")
+def delete_team_member(member_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
+    if not db_m:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    db.delete(db_m)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# TIMELINE TASK ENDPOINTS
+# ============================================
+
+@app.post("/timeline-tasks", response_model=TimelineTaskResponse, status_code=status.HTTP_201_CREATED)
+def create_timeline_task(task: TimelineTaskCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_task = TimelineTask(
+        id=str(uuid.uuid4()),
+        title=task.title,
+        description=task.description or "",
+        project_id=task.project_id,
+        assignee_id=task.assignee_id,
+        start_date=task.start_date,
+        end_date=task.end_date,
+        hours_per_week=task.hours_per_week or 8,
+        status=task.status or "planned",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.get("/timeline-tasks", response_model=List[TimelineTaskResponse])
+def list_timeline_tasks(
+    user_uuid: str,
+    project_id: Optional[str] = None,
+    assignee_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(TimelineTask).filter(TimelineTask.owner_uuid == user_uuid)
+    if project_id:
+        query = query.filter(TimelineTask.project_id == project_id)
+    if assignee_id:
+        query = query.filter(TimelineTask.assignee_id == assignee_id)
+    return query.all()
+
+
+@app.get("/timeline-tasks/{task_id}", response_model=TimelineTaskResponse)
+def get_timeline_task(task_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    t = db.query(TimelineTask).filter(TimelineTask.id == task_id, TimelineTask.owner_uuid == user_uuid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return t
+
+
+@app.put("/timeline-tasks/{task_id}", response_model=TimelineTaskResponse)
+def update_timeline_task(task_id: str, task: TimelineTaskUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_task = db.query(TimelineTask).filter(TimelineTask.id == task_id, TimelineTask.owner_uuid == user_uuid).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    for field, value in task.dict(exclude_unset=True).items():
+        setattr(db_task, field, value)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.delete("/timeline-tasks/{task_id}")
+def delete_timeline_task_api(task_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_task = db.query(TimelineTask).filter(TimelineTask.id == task_id, TimelineTask.owner_uuid == user_uuid).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(db_task)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# TEAM ENDPOINTS (Groups / Classes of Members)
+# ============================================
+
+@app.post("/teams", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
+def create_team(team: TeamCreate, user_uuid: str, db: Session = Depends(get_db)):
+    db_team = Team(
+        id=str(uuid.uuid4()),
+        name=team.name,
+        description=team.description or "",
+        color=team.color or "#14b8a6",
+        member_ids=team.member_ids or "",
+        owner_uuid=user_uuid,
+    )
+    db.add(db_team)
+    db.commit()
+    db.refresh(db_team)
+    return db_team
+
+
+@app.get("/teams", response_model=List[TeamResponse])
+def list_teams(user_uuid: str, db: Session = Depends(get_db)):
+    return db.query(Team).filter(Team.owner_uuid == user_uuid).all()
+
+
+@app.get("/teams/{team_id}", response_model=TeamResponse)
+def get_team(team_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    t = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return t
+
+
+@app.put("/teams/{team_id}", response_model=TeamResponse)
+def update_team(team_id: str, team: TeamUpdate, user_uuid: str, db: Session = Depends(get_db)):
+    db_team = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
+    if not db_team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    for field, value in team.dict(exclude_unset=True).items():
+        setattr(db_team, field, value)
+    db.commit()
+    db.refresh(db_team)
+    return db_team
+
+
+@app.delete("/teams/{team_id}")
+def delete_team(team_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    db_team = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
+    if not db_team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    db.delete(db_team)
+    db.commit()
+    return {"deleted": True}
+
+
+# ============================================
+# PROJECT ASSIGNEE EMAILS ENDPOINT
+# ============================================
+
+@app.get("/projects/{project_id}/assignee-emails")
+def get_project_assignee_emails(project_id: str, user_uuid: str, db: Session = Depends(get_db)):
+    """
+    Get email addresses of all team members assigned to tasks in a project.
+    Returns a list of {name, email, member_id} for members with email addresses.
+    """
+    # Get all tasks for this project
+    tasks = db.query(TimelineTask).filter(
+        TimelineTask.project_id == project_id,
+        TimelineTask.owner_uuid == user_uuid
+    ).all()
+
+    # Collect unique assignee IDs
+    assignee_ids = set()
+    for task in tasks:
+        if task.assignee_id:
+            for aid in task.assignee_id.split(","):
+                aid = aid.strip()
+                if aid:
+                    assignee_ids.add(aid)
+
+    # Get team members with emails
+    results = []
+    for aid in assignee_ids:
+        member = db.query(TeamMember).filter(
+            TeamMember.id == aid,
+            TeamMember.owner_uuid == user_uuid
+        ).first()
+        if member and member.email and member.email.strip():
+            results.append({
+                "member_id": member.id,
+                "name": member.name,
+                "email": member.email
+            })
+
+    return results
 
 
 def create_app():

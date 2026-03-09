@@ -67,6 +67,17 @@ function _renderSelectedDaysChips() {
   `;
 }
 
+// Channel toggle (Telegram vs Email)
+function setComposeChannel(channel) {
+  AppState.composeChannel = channel;
+  selectedRecipients = [];
+  renderScheduleMessagePage();
+}
+
+function _getComposeChannel() {
+  return AppState.composeChannel || 'telegram';
+}
+
 // Toggle recipient selection
 function toggleRecipient(userId, chatId, chatName, platform) {
   const index = selectedRecipients.findIndex(r => r.userId === userId);
@@ -116,12 +127,27 @@ function renderRecipientsList() {
   `).join('');
 }
 
+// Get the correct recipient source list based on channel
+function _getRecipientSource() {
+  if (_getComposeChannel() === 'email') {
+    return (AppState.subscribedEmailUsers || []).map(u => ({
+      id: u.user_id,
+      chat_id: u.user_id,
+      name: u.user_name || u.email_address,
+      user_id: u.user_id,
+      type: u.email_address,
+      platform: 'email'
+    }));
+  }
+  return AppState.subscribedChats || [];
+}
+
 // Filter recipients based on search input
 function filterRecipients(searchTerm) {
   const dropdown = document.getElementById('recipient-dropdown');
   if (!dropdown) return;
 
-  const subscribedChats = AppState.subscribedChats || [];
+  const subscribedChats = _getRecipientSource();
   const normalizedSearch = searchTerm.toLowerCase().trim();
 
   // Filter chats based on search term
@@ -145,7 +171,7 @@ function renderRecipientDropdown(chats) {
   const dropdown = document.getElementById('recipient-dropdown');
   if (!dropdown) return;
 
-  const subscribedChats = chats || AppState.subscribedChats || [];
+  const subscribedChats = chats || _getRecipientSource();
 
   dropdown.innerHTML = `
     <!-- Select All / Clear All -->
@@ -195,7 +221,7 @@ function showRecipientDropdown() {
 
 // Select all recipients
 function selectAllRecipients() {
-  const subscribedChats = AppState.subscribedChats || [];
+  const subscribedChats = _getRecipientSource();
   selectedRecipients = subscribedChats.map(chat => ({
     userId: chat.user_id,
     chatId: chat.id || chat.chat_id,
@@ -293,21 +319,32 @@ async function downloadFileFromGoogleDriveFixed(fileId, fileName, mimeType) {
 
 function renderScheduleMessagePage() {
   const content = document.getElementById('content');
-  const subscribedChats = AppState.subscribedChats || [];
 
-  // Restore form state if returning from document selection, otherwise reset
+  // Restore form state if returning from document selection or project message flow
   const savedState = AppState.schedulerFormState;
   if (savedState) {
     selectedLocalFiles = savedState.localFiles || [];
     selectedRecipients = savedState.recipients || [];
+    // Restore channel BEFORE reading it for the render
+    if (savedState.channel) {
+      AppState.composeChannel = savedState.channel;
+    }
     // Restore selected days
     if (savedState.selectedDays && savedState.selectedDays.length > 0) {
       AppState.selectedScheduleDays = savedState.selectedDays;
     }
+  } else if (Array.isArray(AppState.messagePrefillRecipients) && AppState.messagePrefillRecipients.length > 0) {
+    // Pre-fill recipients from People page (member / team message button)
+    selectedLocalFiles = [];
+    selectedRecipients = AppState.messagePrefillRecipients.slice();
+    AppState.messagePrefillRecipients = null;
   } else {
     selectedLocalFiles = [];
     selectedRecipients = [];
   }
+
+  const channel = _getComposeChannel();
+  const subscribedChats = channel === 'email' ? _getRecipientSource() : (AppState.subscribedChats || []);
 
   content.innerHTML = `
     <div class="animate-slide-up">
@@ -325,10 +362,33 @@ function renderScheduleMessagePage() {
         <div class="card" style="grid-column: span 2;">
           <h3 class="text-lg font-semibold mb-6">Compose Message</h3>
 
+          <!-- Channel Toggle -->
+          <div class="flex gap-2 mb-6">
+            <button
+              class="btn ${channel === 'telegram' ? 'btn-primary' : 'btn-secondary'} btn-sm"
+              onclick="setComposeChannel('telegram')"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+              </svg>
+              Telegram
+            </button>
+            <button
+              class="btn ${channel === 'email' ? 'btn-primary' : 'btn-secondary'} btn-sm"
+              onclick="setComposeChannel('email')"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              Email
+            </button>
+          </div>
+
           <div class="flex flex-col gap-6">
             <!-- Recipient Selection (Multi-select) -->
             <div class="form-group">
-              <label class="form-label">Recipients</label>
+              <label class="form-label">${channel === 'email' ? 'Email Recipients' : 'Recipients'}</label>
 
               <!-- Selected recipients display -->
               <div id="selected-recipients-list" class="flex flex-wrap gap-1 mb-2" style="min-height: 28px;">
@@ -360,13 +420,35 @@ function renderScheduleMessagePage() {
 
               ${subscribedChats.length === 0 ? `
                 <p class="text-xs text-muted mt-2">
-                  No subscribed chats found.
-                  <button class="text-accent" style="background: none; border: none; cursor: pointer; text-decoration: underline;" onclick="AzureVMAPI.refreshSubscribedChats()">Refresh chats</button>
+                  ${channel === 'email' ? 'No subscribed email users found.' : 'No subscribed chats found.'}
+                  <button class="text-accent" style="background: none; border: none; cursor: pointer; text-decoration: underline;" onclick="${channel === 'email' ? 'AzureVMAPI.refreshSubscribedEmailUsers()' : 'AzureVMAPI.refreshSubscribedChats()'}">Refresh</button>
+                  ${channel === 'email' ? `
+                    &nbsp;or&nbsp;
+                    <button class="text-accent" style="background: none; border: none; cursor: pointer; text-decoration: underline;" onclick="showAddEmailUserModal()">Add email recipient</button>
+                  ` : ''}
                 </p>
               ` : `
-                <p class="text-xs text-muted mt-2">${subscribedChats.length} chat(s) available</p>
+                <div class="flex items-center gap-2 mt-2">
+                  <p class="text-xs text-muted">${subscribedChats.length} ${channel === 'email' ? 'email user(s)' : 'chat(s)'} available</p>
+                  ${channel === 'email' ? `
+                    <button class="text-accent text-xs" style="background: none; border: none; cursor: pointer; text-decoration: underline;" onclick="showAddEmailUserModal()">+ Add new</button>
+                  ` : ''}
+                </div>
               `}
             </div>
+
+            ${channel === 'email' ? `
+            <!-- Email Subject -->
+            <div class="form-group">
+              <label class="form-label">Subject</label>
+              <input
+                type="text"
+                id="email-subject"
+                class="form-input w-full"
+                placeholder="Enter email subject..."
+              />
+            </div>
+            ` : ''}
 
             <!-- Message Content -->
             <div class="form-group">
@@ -488,10 +570,11 @@ function renderScheduleMessagePage() {
             <div class="flex flex-col gap-3">
               <button class="btn btn-primary w-full" onclick="submitScheduledMessage()">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="22" y1="2" x2="11" y2="13"/>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  ${channel === 'email'
+                    ? '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>'
+                    : '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'}
                 </svg>
-                Schedule Message
+                ${channel === 'email' ? 'Schedule Email' : 'Schedule Message'}
               </button>
               <button class="btn btn-secondary w-full" onclick="saveDraft()">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -595,6 +678,7 @@ function renderScheduleMessagePage() {
     if (savedState) {
       const messageBox = document.getElementById('message-content');
       const timeInput = document.getElementById('message-time');
+      const subjectInput = document.getElementById('email-subject');
 
       // Restore message content
       if (messageBox && savedState.messageContent) {
@@ -604,6 +688,11 @@ function renderScheduleMessagePage() {
       // Restore time
       if (timeInput && savedState.time) {
         timeInput.value = savedState.time;
+      }
+
+      // Restore email subject
+      if (subjectInput && savedState.emailSubject) {
+        subjectInput.value = savedState.emailSubject;
       }
 
       // Render the restored recipients list
@@ -616,6 +705,11 @@ function renderScheduleMessagePage() {
     }
   } catch (e) {
     console.warn('Form state restore failed:', e);
+  }
+
+  // Always render recipients list (handles prefill from People page, etc.)
+  if (selectedRecipients.length > 0) {
+    renderRecipientsList();
   }
 }
 
@@ -651,10 +745,13 @@ function goToDocumentsForSelection() {
   // Save current form state before navigating away
   const messageContent = document.getElementById('message-content')?.value || '';
   const time = document.getElementById('message-time')?.value || '';
+  const emailSubject = document.getElementById('email-subject')?.value || '';
 
   AppState.schedulerFormState = {
     messageContent,
     time,
+    emailSubject,
+    channel: _getComposeChannel(),
     recipients: [...selectedRecipients],
     localFiles: [...selectedLocalFiles],
     selectedDays: [...(AppState.selectedScheduleDays || [])]
@@ -795,12 +892,12 @@ function setQuickSchedule(option) {
 
 // Submit message
 async function submitScheduledMessage() {
+  const channel = _getComposeChannel();
   const content = document.getElementById('message-content')?.value || '';
+  const subject = document.getElementById('email-subject')?.value || '';
 
-  // ✅ NEW: time-only input (keep quick schedule alone; this is just the main composer)
   const time = document.getElementById('message-time')?.value || '';
 
-  // ✅ NEW: selected days from calendar
   const selectedDays = Array.from(new Set(AppState.selectedScheduleDays || [])).sort();
 
   const normalizeSource = (src) => String(src || '').trim().toLowerCase();
@@ -809,7 +906,10 @@ async function submitScheduledMessage() {
   if (selectedRecipients.length === 0) { showNotification('Please select at least one recipient', 'warning'); return; }
   if (!content.trim()) { showNotification('Please enter a message', 'warning'); return; }
 
-  // ✅ NEW: validate time + days
+  // Validate email subject
+  if (channel === 'email' && !subject.trim()) { showNotification('Please enter an email subject', 'warning'); return; }
+
+  // Validate time + days
   if (!time) { showNotification('Please select a time', 'warning'); return; }
   if (selectedDays.length === 0) { showNotification('Please select at least one day', 'warning'); return; }
 
@@ -877,11 +977,11 @@ async function submitScheduledMessage() {
     });
 
     showNotification(
-      `Scheduling message to ${selectedRecipients.length} recipient(s) on ${selectedDays.length} day(s)...`,
+      `Scheduling ${channel === 'email' ? 'email' : 'message'} to ${selectedRecipients.length} recipient(s) on ${selectedDays.length} day(s)...`,
       'info'
     );
 
-   // Send to all selected recipients × all selected days (BUNDLED PER DAY)
+   // Send to all selected recipients x all selected days (BUNDLED PER DAY)
 let successCount = 0;
 let failCount = 0;
 
@@ -892,7 +992,11 @@ for (const scheduledTimestamp of scheduledTimestamps) {
 
   for (const recipient of selectedRecipients) {
     try {
-      await AzureVMAPI.scheduleMessage(recipient.userId, content, scheduledTimestamp, allFiles);
+      if (channel === 'email') {
+        await AzureVMAPI.scheduleEmail(recipient.userId, subject, content, scheduledTimestamp, allFiles);
+      } else {
+        await AzureVMAPI.scheduleMessage(recipient.userId, content, scheduledTimestamp, allFiles);
+      }
 
       successfulRecipientsForThisDay.push(recipient);
       successCount++;
@@ -902,31 +1006,37 @@ for (const scheduledTimestamp of scheduledTimestamps) {
     }
   }
 
-  // Add ONE bundled message entry for this day, containing all successful recipients
+  // Add ONE bundled entry for this day, containing all successful recipients
   if (successfulRecipientsForThisDay.length > 0) {
-    AppState.scheduledMessages = AppState.scheduledMessages || [];
-    AppState.scheduledMessages.push({
+    const entry = {
       id: generateId(),
-
-      // bundled recipients
       recipients: successfulRecipientsForThisDay.map(r => r.chatName),
       target_user_ids: successfulRecipientsForThisDay.map(r => r.userId),
-
       message_content: content,
       scheduled_time: scheduledTimestamp,
       status: 'pending',
-
+      platform: channel,
       files: allFiles.map(f => ({ name: f.name, size: f.size }))
-    });
+    };
+
+    if (channel === 'email') {
+      entry.subject = subject;
+      AppState.scheduledEmails = AppState.scheduledEmails || [];
+      AppState.scheduledEmails.push(entry);
+    } else {
+      AppState.scheduledMessages = AppState.scheduledMessages || [];
+      AppState.scheduledMessages.push(entry);
+    }
   }
 }
 
     const fileCountMsg = allFiles.length > 0 ? ` with ${allFiles.length} file(s)` : '';
+    const typeLabel = channel === 'email' ? 'email(s)' : 'message(s)';
 
     if (failCount === 0) {
-      showNotification(`Scheduled ${successCount}/${attempted}${fileCountMsg}!`, 'success');
+      showNotification(`Scheduled ${successCount}/${attempted} ${typeLabel}${fileCountMsg}!`, 'success');
     } else {
-      showNotification(`Scheduled ${successCount}/${attempted}, failed ${failCount}${fileCountMsg}`, 'warning');
+      showNotification(`Scheduled ${successCount}/${attempted} ${typeLabel}, failed ${failCount}${fileCountMsg}`, 'warning');
     }
 
     navigateTo('scheduling');
@@ -985,6 +1095,8 @@ function saveDraft() {
 function clearForm() {
   const contentTextarea = document.getElementById('message-content');
   if (contentTextarea) contentTextarea.value = '';
+  const subjectInput = document.getElementById('email-subject');
+  if (subjectInput) subjectInput.value = '';
   selectedLocalFiles = [];
   selectedRecipients = [];
   AppState.selectedCloudFilesForScheduler = [];
@@ -998,6 +1110,103 @@ function clearForm() {
   }
   updateCharCount();
   showNotification('Form cleared', 'info');
+}
+
+// Modal for adding a new email recipient
+function showAddEmailUserModal() {
+  // Remove existing modal if present
+  const existing = document.getElementById('add-email-user-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'add-email-user-modal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.cssText = 'width:400px;max-width:90vw;';
+  card.addEventListener('click', function(e) { e.stopPropagation(); });
+
+  card.innerHTML =
+    '<h3 class="font-semibold mb-4">Add Email Recipient</h3>' +
+    '<div class="flex flex-col gap-4">' +
+    '  <div class="form-group">' +
+    '    <label class="form-label">Name</label>' +
+    '    <input type="text" id="new-email-user-name" class="form-input w-full" placeholder="Recipient name..." />' +
+    '  </div>' +
+    '  <div class="form-group">' +
+    '    <label class="form-label">Email Address</label>' +
+    '    <input type="email" id="new-email-user-address" class="form-input w-full" placeholder="email@example.com" />' +
+    '  </div>' +
+    '  <div id="add-email-modal-error" class="text-sm" style="color:var(--error);display:none;"></div>' +
+    '  <div class="flex gap-2 justify-end">' +
+    '    <button class="btn btn-ghost btn-sm" id="add-email-cancel-btn">Cancel</button>' +
+    '    <button class="btn btn-primary btn-sm" id="add-email-submit-btn">Add Recipient</button>' +
+    '  </div>' +
+    '</div>';
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  // Wire up buttons via addEventListener
+  card.querySelector('#add-email-cancel-btn').addEventListener('click', function() {
+    overlay.remove();
+  });
+  card.querySelector('#add-email-submit-btn').addEventListener('click', function() {
+    submitAddEmailUser();
+  });
+
+  // Focus the name input
+  setTimeout(function() {
+    var nameInput = document.getElementById('new-email-user-name');
+    if (nameInput) nameInput.focus();
+  }, 100);
+}
+
+async function submitAddEmailUser() {
+  const userName = document.getElementById('new-email-user-name')?.value?.trim() || '';
+  const emailAddress = document.getElementById('new-email-user-address')?.value?.trim() || '';
+  const errorDiv = document.getElementById('add-email-modal-error');
+  const submitBtn = document.getElementById('add-email-submit-btn');
+
+  // Reset error
+  if (errorDiv) { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
+
+  if (!userName) {
+    if (errorDiv) { errorDiv.textContent = 'Please enter a name'; errorDiv.style.display = 'block'; }
+    return;
+  }
+  if (!emailAddress) {
+    if (errorDiv) { errorDiv.textContent = 'Please enter an email address'; errorDiv.style.display = 'block'; }
+    return;
+  }
+
+  // Show loading state
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Adding...'; }
+
+  try {
+    await AzureVMAPI.subscribeEmailUser(emailAddress, userName);
+    showNotification('Added ' + userName + ' (' + emailAddress + ')', 'success');
+
+    // Remove modal
+    const modal = document.getElementById('add-email-user-modal');
+    if (modal) modal.remove();
+
+    // Refresh email users and re-render
+    await AzureVMAPI.fetchSubscribedEmailUsers();
+    if (typeof renderScheduling === 'function' && AppState.currentView === 'scheduling') {
+      renderScheduling();
+    } else {
+      renderScheduleMessagePage();
+    }
+  } catch (error) {
+    const msg = error?.message || String(error);
+    if (errorDiv) { errorDiv.textContent = msg; errorDiv.style.display = 'block'; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Add Recipient'; }
+  }
 }
 
 // Export to global scope
@@ -1025,8 +1234,10 @@ if (typeof window !== 'undefined') {
   window.showRecipientDropdown = showRecipientDropdown;
   window.removeSelectedDay = removeSelectedDay;
   window.openCalendarDayPicker = openCalendarDayPicker;
-
-
+  // Email / channel functions
+  window.setComposeChannel = setComposeChannel;
+  window.showAddEmailUserModal = showAddEmailUserModal;
+  window.submitAddEmailUser = submitAddEmailUser;
 }
 
 // Close dropdown when clicking outside

@@ -553,21 +553,444 @@ const AzureVMAPI = {
   startMessagePolling(intervalMs = 30000) {
     this.stopMessagePolling();
 
-    console.log(`🔄 Starting message polling (every ${intervalMs / 1000}s)`);
+    console.log(`Starting message polling (every ${intervalMs / 1000}s)`);
 
     this.syncMessagesFromServer();
+    this.syncEmailsFromServer();
 
     this._pollingInterval = setInterval(() => {
       if (AppState.azureVmUrl) {
         this.syncMessagesFromServer();
+        this.syncEmailsFromServer();
       }
     }, intervalMs);
   },
 
   stopMessagePolling() {
-    console.log('⏹️ Stopping message polling');
+    console.log('Stopping message polling');
     clearInterval(this._pollingInterval);
     this._pollingInterval = null;
+  },
+
+  // ==================== EMAIL / GMAIL METHODS ====================
+
+  async fetchSubscribedEmailUsers() {
+    if (!AppState.azureVmUrl) {
+      throw new Error('Azure VM URL not configured. Please set it in Settings.');
+    }
+
+    AppState.loadingSubscribedEmailUsers = true;
+
+    try {
+      const base = this._baseUrl();
+      const response = await fetch(`${base}/subscribed-email-users`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch subscribed email users: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Raw email users response:', data);
+
+      let rawUsers = [];
+      if (Array.isArray(data)) rawUsers = data;
+      else if (data && Array.isArray(data.users)) rawUsers = data.users;
+      else {
+        console.error('Unexpected email users response format:', data);
+        throw new Error('Invalid response format from server');
+      }
+
+      const formattedUsers = rawUsers.map(user => ({
+        user_id: user.user_id,
+        email_address: user.email_address,
+        user_name: user.user_name || user.email_address,
+        name: user.user_name || user.email_address,
+        created_at: user.created_at,
+        platform: 'email'
+      }));
+
+      console.log('Formatted email users:', formattedUsers);
+      AppState.subscribedEmailUsers = formattedUsers;
+      return formattedUsers;
+    } catch (error) {
+      console.error('Error fetching subscribed email users:', error);
+      throw error;
+    } finally {
+      AppState.loadingSubscribedEmailUsers = false;
+    }
+  },
+
+  async refreshSubscribedEmailUsers() {
+    try {
+      showNotification('Fetching subscribed email users...', 'info');
+      const users = await this.fetchSubscribedEmailUsers();
+      showNotification(`Loaded ${users.length} subscribed email user(s)`, 'success');
+
+      if (AppState.currentView === 'scheduling') {
+        renderScheduling();
+      }
+    } catch (error) {
+      showNotification('Failed to fetch email users: ' + error.message, 'error');
+    }
+  },
+
+  async subscribeEmailUser(emailAddress, userName) {
+    if (!AppState.azureVmUrl) {
+      throw new Error('Azure VM URL not configured. Please set it in Settings.');
+    }
+
+    const endpoint = `${this._baseUrl()}/subscribe-email-user`;
+    try {
+      const body = {
+        email_address: emailAddress,
+        user_name: userName
+      };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}: ${res.statusText}`;
+        try {
+          const data = await res.json();
+          msg = data.detail || data.error || data.message || msg;
+        } catch (e) {
+          try { const text = await res.text(); if (text) msg = text; } catch (_) {}
+        }
+        throw new Error(msg);
+      }
+
+      const data = await res.json();
+      console.log('Subscribed email user response:', data);
+      return data;
+    } catch (err) {
+      console.error('subscribeEmailUser error:', err);
+      throw err;
+    }
+  },
+
+  async scheduleEmail(targetUserId, subject, message, scheduledTimestamp, files = []) {
+    if (!AppState.azureVmUrl) {
+      throw new Error('Azure VM URL not configured. Please set it in Settings.');
+    }
+
+    if (!AppState.userId) {
+      throw new Error('User not authenticated. Please sign in.');
+    }
+
+    console.log('=== PREPARING TO SEND EMAIL TO SERVER ===');
+
+    let targetUserIdStr = '';
+    if (Array.isArray(targetUserId)) targetUserIdStr = targetUserId.join(',');
+    else if (typeof targetUserId === 'string') targetUserIdStr = targetUserId;
+    else if (targetUserId != null) targetUserIdStr = String(targetUserId);
+
+    let scheduledTsStr = '';
+    if (scheduledTimestamp instanceof Date) scheduledTsStr = scheduledTimestamp.toISOString();
+    else if (typeof scheduledTimestamp === 'string') scheduledTsStr = scheduledTimestamp;
+    else if (scheduledTimestamp != null) scheduledTsStr = String(scheduledTimestamp);
+
+    console.log('Target email user(s):', targetUserIdStr);
+    console.log('Subject:', subject);
+    console.log('Scheduled timestamp:', scheduledTsStr);
+    console.log('Files:', files ? files.length || 0 : 0);
+
+    const formData = new FormData();
+    formData.append('target_user_id', targetUserIdStr);
+    formData.append('subject', subject);
+    formData.append('message', message);
+    formData.append('scheduled_timestamp', scheduledTsStr);
+    formData.append('from_sender', AppState.userId);
+
+    if (files && files.length > 0) {
+      Array.from(files).forEach((file, index) => {
+        try {
+          console.log(`  [${index}] ${file.name} - ${file.size} bytes - ${file.type}`);
+        } catch (e) {
+          console.log(`  [${index}] file added (no metadata available)`);
+        }
+        formData.append('files', file);
+      });
+    }
+
+    const endpoint = `${this._baseUrl()}/schedule-email`;
+    console.log('Sending POST to:', endpoint);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        try {
+          const errorText = await response.text();
+          if (errorText) errorMessage = errorText;
+        } catch (e2) {}
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log('=== EMAIL SCHEDULED SUCCESSFULLY ===');
+    console.log('Response from server:', result);
+    return result;
+  },
+
+  async getPendingEmails() {
+    if (!AppState.azureVmUrl) {
+      throw new Error('Azure VM URL not configured. Please set it in Settings.');
+    }
+
+    if (!AppState.userId) {
+      throw new Error('User not authenticated. Please sign in.');
+    }
+
+    const endpoint = `${this._baseUrl()}/pending-emails?from_sender=${encodeURIComponent(AppState.userId)}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}: ${res.statusText}`;
+        try {
+          const data = await res.json();
+          msg = data.detail || data.error || data.message || msg;
+        } catch (e) {
+          try { const text = await res.text(); if (text) msg = text; } catch (_) {}
+        }
+        throw new Error(msg);
+      }
+
+      const data = await res.json();
+      console.log('Pending emails for user:', AppState.userId, data);
+      return data;
+    } catch (err) {
+      console.error('getPendingEmails error:', err);
+      throw err;
+    }
+  },
+
+  async deleteEmail(emailId) {
+    if (!AppState.azureVmUrl) {
+      throw new Error('Azure VM URL not configured. Please set it in Settings.');
+    }
+
+    if (!AppState.userId) {
+      throw new Error('User not authenticated. Please sign in.');
+    }
+
+    if (!emailId) {
+      throw new Error('emailId is required to delete a scheduled email');
+    }
+
+    const base = this._baseUrl();
+    const deleteUrl = `${base}/delete-email?email_id=${encodeURIComponent(emailId)}`;
+
+    try {
+      let res = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (res.status === 405) {
+        console.warn('DELETE not allowed on server; attempting POST fallback');
+        const formData = new FormData();
+        formData.append('email_id', emailId);
+        res = await fetch(`${base}/delete-email`, { method: 'POST', body: formData });
+      }
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}: ${res.statusText}`;
+        try {
+          const data = await res.json();
+          msg = data.detail || data.error || data.message || msg;
+        } catch (e) {
+          try { const text = await res.text(); if (text) msg = text; } catch (_) {}
+        }
+        throw new Error(msg);
+      }
+
+      const data = await res.json();
+      console.log('deleteEmail response:', data);
+      return data === true || data === 'true' || (data && data.deleted === true);
+    } catch (err) {
+      console.error('deleteEmail error:', err);
+      throw err;
+    }
+  },
+
+  async syncEmailsFromServer() {
+    try {
+      if (!AppState.userId) {
+        console.log('No user ID - skipping email sync');
+        return;
+      }
+
+      const serverEmails = await this.getPendingEmails();
+
+      if (!Array.isArray(serverEmails)) {
+        console.warn('Server returned non-array for pending emails:', serverEmails);
+        return;
+      }
+
+      console.log(`Fetched ${serverEmails.length} email(s) from server for user ${AppState.userId}`);
+
+      AppState.scheduledEmails = AppState.scheduledEmails || [];
+
+      const serverIdSet = new Set(serverEmails.map(m => String(m.id)));
+
+      // 1) Update/Remove local emails
+      const emailsToRemove = [];
+
+      AppState.scheduledEmails.forEach((localEmail, index) => {
+        const localId = localEmail?.server_id || localEmail?.id;
+        const localIdStr = localId != null ? String(localId) : '';
+
+        let serverEmail = localIdStr
+          ? serverEmails.find(s => String(s.id) === localIdStr)
+          : null;
+
+        if (serverEmail) {
+          if (serverEmail.is_sent === true && localEmail.status !== 'sent') {
+            localEmail.status = 'sent';
+            localEmail.sent_at = serverEmail.sent_at || new Date().toISOString();
+          }
+          localEmail.server_id = localEmail.server_id || serverEmail.id;
+          localEmail.id = serverEmail.id;
+        } else {
+          if (localEmail.server_id && !serverIdSet.has(String(localEmail.server_id))) {
+            emailsToRemove.push(index);
+          }
+        }
+      });
+
+      emailsToRemove.reverse().forEach(i => AppState.scheduledEmails.splice(i, 1));
+
+      // 2) Add server emails we don't have
+      let addedCount = 0;
+
+      serverEmails.forEach(serverEmail => {
+        const serverId = String(serverEmail.id);
+        const existsById = AppState.scheduledEmails.some(m =>
+          String(m.id) === serverId || String(m.server_id) === serverId
+        );
+
+        if (!existsById) {
+          let displayName = null;
+          const targetIdRaw = Array.isArray(serverEmail.target_user_id) ? serverEmail.target_user_id[0] : serverEmail.target_user_id;
+          const targetId = targetIdRaw != null ? String(targetIdRaw) : '';
+
+          if (targetId && AppState.subscribedEmailUsers) {
+            const match = AppState.subscribedEmailUsers.find(u => String(u.user_id) === targetId);
+            if (match) displayName = match.user_name || match.email_address;
+          }
+
+          AppState.scheduledEmails.push({
+            id: serverEmail.id,
+            server_id: serverEmail.id,
+            recipient: displayName || this._normTarget(serverEmail.target_user_id),
+            subject: serverEmail.subject || '',
+            message_content: this._normText(serverEmail.message),
+            scheduled_time: this._normTime(serverEmail.scheduled_timestamp),
+            scheduled_timestamp: this._normTime(serverEmail.scheduled_timestamp),
+            target_user_id: this._normTarget(serverEmail.target_user_id),
+            status: serverEmail.is_sent ? 'sent' : 'pending',
+            created_at: serverEmail.created_at || new Date().toISOString(),
+            sent_at: serverEmail.sent_at,
+            from_sender: AppState.userId,
+            file_paths: serverEmail.file_paths || [],
+            platform: 'email'
+          });
+
+          addedCount++;
+        }
+      });
+
+      // 3) Dedupe by ID
+      const byId = new Map();
+      AppState.scheduledEmails.forEach(m => {
+        const idKey = String(m.server_id || m.id || '');
+        if (!idKey) return;
+        if (!byId.has(idKey)) {
+          byId.set(idKey, m);
+        } else {
+          const better = this._chooseBetter(byId.get(idKey), m);
+          byId.set(idKey, better);
+        }
+      });
+      AppState.scheduledEmails = Array.from(byId.values());
+
+      if (addedCount > 0 || emailsToRemove.length > 0) {
+        console.log(`Email sync: ${emailsToRemove.length} removed, ${addedCount} added`);
+        if (AppState.currentView === 'scheduling' && typeof renderScheduling === 'function') {
+          renderScheduling();
+        }
+      }
+
+      return serverEmails;
+    } catch (error) {
+      console.error('Error syncing emails from server:', error);
+    }
+  },
+
+  async syncTeamMemberEmails() {
+    try {
+      const teamMembers = AppState.timelineTeamMembers || [];
+      const existingEmails = (AppState.subscribedEmailUsers || []).map(u =>
+        (u.email_address || '').toLowerCase()
+      );
+
+      // Find team members with emails not yet subscribed
+      const toSubscribe = teamMembers.filter(m =>
+        m.email && m.email.trim() !== '' &&
+        !existingEmails.includes(m.email.toLowerCase())
+      );
+
+      if (toSubscribe.length === 0) {
+        console.log('No new team member emails to subscribe');
+        return;
+      }
+
+      console.log(`Subscribing ${toSubscribe.length} team member(s) with emails...`);
+
+      let added = 0;
+      for (const member of toSubscribe) {
+        try {
+          await this.subscribeEmailUser(member.email, member.name);
+          added++;
+        } catch (err) {
+          // 400 = already exists, which is fine
+          if (err?.message && err.message.includes('already exists')) {
+            console.log(`Email ${member.email} already subscribed, skipping`);
+          } else {
+            console.warn(`Failed to subscribe ${member.name} (${member.email}):`, err?.message || err);
+          }
+        }
+      }
+
+      if (added > 0) {
+        console.log(`Subscribed ${added} team member(s) as email recipients`);
+        // Refresh the list so newly added users show up
+        await this.fetchSubscribedEmailUsers();
+      }
+    } catch (error) {
+      console.error('Error syncing team member emails:', error);
+    }
   }
 };
 

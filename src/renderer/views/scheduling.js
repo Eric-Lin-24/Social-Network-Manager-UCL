@@ -33,8 +33,12 @@ function setSchedulingTab(tab) {
 }
 
 function getRecipientNameByUserId(userId) {
+  // Check Telegram chats first, then email users
   const chat = (AppState.subscribedChats || []).find(c => String(c.user_id) === String(userId));
-  return chat?.name || userId || 'Unknown';
+  if (chat) return chat.name || userId || 'Unknown';
+  const emailUser = (AppState.subscribedEmailUsers || []).find(u => String(u.user_id) === String(userId));
+  if (emailUser) return emailUser.user_name || emailUser.email_address || userId || 'Unknown';
+  return userId || 'Unknown';
 }
 
 // Draft actions (same storage key as composer)
@@ -67,10 +71,83 @@ function _safeText(str = '') {
   return String(str).replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function _renderEmailQueueItems(emails) {
+  if (emails.length === 0) {
+    return '<div class="empty-state" style="padding: 48px 24px;">' +
+      '<div class="empty-icon">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+      '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>' +
+      '<polyline points="22,6 12,13 2,6"/>' +
+      '</svg></div>' +
+      '<h3>No emails scheduled</h3>' +
+      '<p>Switch to the Email channel in the composer above to schedule an email.</p>' +
+      '</div>';
+  }
+
+  return '<div class="flex flex-col">' +
+    emails.map(function(email, index) {
+      var recipientDisplay = '';
+      if (email.recipients && Array.isArray(email.recipients)) {
+        recipientDisplay = email.recipients.join(', ');
+      } else if (email.target_user_id) {
+        recipientDisplay = getRecipientNameByUserId(email.target_user_id);
+      } else {
+        recipientDisplay = email.recipient || 'Unknown';
+      }
+
+      var hasAttachments = (email.files && Array.isArray(email.files) && email.files.length > 0) ||
+                           (email.file_paths && Array.isArray(email.file_paths) && email.file_paths.length > 0);
+
+      var statusClass = email.status === 'sent' ? 'sent' : 'pending';
+      var badgeClass = email.status === 'sent' ? 'badge-success' : 'badge-warning';
+      var timeDisplay = typeof formatDateTime === 'function' ? formatDateTime(email.scheduled_time) : _safeText(email.scheduled_time || '');
+
+      var html = '<div class="message-item" style="animation: slideUp 0.3s ease ' + (index * 0.05) + 's both;">' +
+        '<div class="message-status ' + statusClass + '"></div>' +
+        '<div class="message-content">' +
+        '<div class="flex justify-between items-start mb-1">' +
+        '<div class="flex items-center gap-2">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.5; flex-shrink: 0;">' +
+        '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>' +
+        '<polyline points="22,6 12,13 2,6"/>' +
+        '</svg>' +
+        '<span class="message-recipient">' + _safeText(recipientDisplay) + '</span>';
+
+      if (hasAttachments) {
+        html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" title="Has attachments" style="opacity: 0.6;">' +
+          '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>' +
+          '</svg>';
+      }
+
+      html += '</div>' +
+        '<span class="badge ' + badgeClass + '">' + _safeText(email.status || 'Pending') + '</span>' +
+        '</div>';
+
+      if (email.subject) {
+        html += '<p class="text-sm font-medium" style="margin-bottom: 2px;">' + _safeText(email.subject) + '</p>';
+      }
+
+      html += '<p class="message-preview">' + _safeText(email.message_content || '') + '</p>' +
+        '<span class="text-xs text-muted mt-2">' + timeDisplay + '</span>' +
+        '</div>' +
+        '<div class="flex gap-2">' +
+        '<button class="btn-icon" onclick="deleteScheduledEmail(\'' + email.id + '\')" title="Delete" style="color: var(--error);">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        '<polyline points="3 6 5 6 21 6"/>' +
+        '<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
+        '</svg></button></div></div>';
+
+      return html;
+    }).join('') +
+    '</div>';
+}
+
 function renderScheduling() {
   const content = document.getElementById('content');
   const messages = AppState.scheduledMessages || [];
+  const emails = AppState.scheduledEmails || [];
   const subscribedChats = AppState.subscribedChats || [];
+  const subscribedEmailUsers = AppState.subscribedEmailUsers || [];
   const drafts = schedulingLoadDrafts();
   const activeTab = AppState.schedulingActiveTab || 'queue';
 
@@ -96,16 +173,16 @@ function renderScheduling() {
     return;
   }
 
-  // 2) Messages box underneath (Queue + Drafts)
+  // 2) Messages box underneath (Queue + Email Queue + Drafts)
+  const totalScheduled = messages.length + emails.length;
   content.insertAdjacentHTML('beforeend', `
     <div class="card mt-6">
       <div class="flex justify-between items-center mb-4">
         <div>
           <h3 class="font-semibold">Messages</h3>
-          <p class="text-sm text-muted">${messages.length} message${messages.length !== 1 ? 's' : ''} scheduled</p>
+          <p class="text-sm text-muted">${totalScheduled} item${totalScheduled !== 1 ? 's' : ''} scheduled (${messages.length} Telegram, ${emails.length} Email)</p>
         </div>
 
-        <!-- Key fix: refreshCurrentView syncs AND rerenders -->
         <button class="btn btn-ghost btn-sm" onclick="refreshCurrentView()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="23 4 23 10 17 10"/>
@@ -120,14 +197,21 @@ function renderScheduling() {
           class="btn ${activeTab === 'queue' ? 'btn-primary' : 'btn-secondary'} btn-sm"
           onclick="setSchedulingTab('queue')"
         >
-          Message Queue
+          Telegram Queue
+        </button>
+
+        <button
+          class="btn ${activeTab === 'email-queue' ? 'btn-primary' : 'btn-secondary'} btn-sm"
+          onclick="setSchedulingTab('email-queue')"
+        >
+          Email Queue
         </button>
 
         <button
           class="btn ${activeTab === 'drafts' ? 'btn-primary' : 'btn-secondary'} btn-sm"
           onclick="setSchedulingTab('drafts')"
         >
-          Recurring Message Drafts
+          Drafts
         </button>
       </div>
 
@@ -172,6 +256,8 @@ function renderScheduling() {
             }).join('')}
           </div>
         `}
+      ` : activeTab === 'email-queue' ? `
+        ${_renderEmailQueueItems(emails)}
       ` : `
         ${messages.length === 0 ? `
           <div class="empty-state" style="padding: 48px 24px;">
@@ -186,20 +272,17 @@ function renderScheduling() {
         ` : `
           <div class="flex flex-col">
             ${messages.map((msg, index) => {
-              // Handle both old single-recipient and new multi-recipient format
               let recipientDisplay = '';
               if (msg.recipients && Array.isArray(msg.recipients)) {
-                // New bundled format
                 recipientDisplay = msg.recipients.join(', ');
               } else if (msg.target_user_id) {
-                // Old single recipient format
-                recipientDisplay = typeof getRecipientName === 'function' 
-                  ? getRecipientName(msg.target_user_id) 
+                recipientDisplay = typeof getRecipientName === 'function'
+                  ? getRecipientName(msg.target_user_id)
                   : getRecipientNameByUserId(msg.target_user_id);
               } else {
                 recipientDisplay = msg.recipient || 'Unknown';
               }
-              
+
               const hasAttachments = msg.files && Array.isArray(msg.files) && msg.files.length > 0;
 
               return `
@@ -237,16 +320,15 @@ function renderScheduling() {
     </div>
   `);
 
-  // 3) Subscribed chats under that
+  // 3) Subscribed Telegram chats
   content.insertAdjacentHTML('beforeend', `
     <div class="card mt-6">
       <div class="flex justify-between items-center mb-6">
         <div>
-          <h3 class="font-semibold">Subscribed Chats</h3>
+          <h3 class="font-semibold">Telegram Subscribers</h3>
           <p class="text-sm text-muted">${subscribedChats.length} active chat${subscribedChats.length !== 1 ? 's' : ''}</p>
         </div>
 
-        <!-- Key fix: refreshCurrentView syncs AND rerenders -->
         <button class="btn btn-ghost btn-sm" onclick="refreshCurrentView()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="23 4 23 10 17 10"/>
@@ -270,6 +352,58 @@ function renderScheduling() {
               <div class="connection-info">
                 <div class="connection-name">${_safeText(chat.name || chat.id)}</div>
                 <div class="connection-status">${_safeText(chat.type || 'Group')} • ${_safeText(chat.platform || 'WhatsApp')}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+  `);
+
+  // 4) Subscribed Email users
+  content.insertAdjacentHTML('beforeend', `
+    <div class="card mt-6">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h3 class="font-semibold">Email Subscribers</h3>
+          <p class="text-sm text-muted">${subscribedEmailUsers.length} email recipient${subscribedEmailUsers.length !== 1 ? 's' : ''}</p>
+        </div>
+
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" onclick="showAddEmailUserModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="AzureVMAPI.refreshSubscribedEmailUsers()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      ${subscribedEmailUsers.length === 0 ? `
+        <div class="text-center py-8 text-muted">
+          <p>No email subscribers found.</p>
+          <button class="btn btn-secondary btn-sm mt-4" onclick="showAddEmailUserModal()">Add email recipient</button>
+        </div>
+      ` : `
+        <div class="grid grid-cols-3 gap-4">
+          ${subscribedEmailUsers.map((user, index) => `
+            <div class="connection-card" style="animation: slideUp 0.3s ease ${index * 0.05}s both;">
+              <div class="connection-icon" style="background: rgba(234, 67, 53, 0.1);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#ea4335" stroke-width="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+              </div>
+              <div class="connection-info">
+                <div class="connection-name">${_safeText(user.user_name || user.name)}</div>
+                <div class="connection-status">${_safeText(user.email_address || '')}</div>
               </div>
             </div>
           `).join('')}
@@ -314,6 +448,32 @@ async function deleteMessage(messageId) {
   }
 }
 
+async function deleteScheduledEmail(emailId) {
+  const idx = (AppState.scheduledEmails || []).findIndex(m => m.id === emailId);
+  if (idx < 0) return;
+
+  const email = AppState.scheduledEmails[idx];
+  const serverEmailId = email.server_id || email.id;
+
+  try {
+    if (window.AzureVMAPI && typeof AzureVMAPI.deleteEmail === 'function') {
+      await AzureVMAPI.deleteEmail(serverEmailId);
+    }
+    AppState.scheduledEmails.splice(idx, 1);
+    showNotification('Email deleted', 'success');
+    renderScheduling();
+  } catch (error) {
+    console.error('Error deleting email:', error);
+    if (error?.message && (error.message.includes('404') || error.message.includes('not found'))) {
+      AppState.scheduledEmails.splice(idx, 1);
+      showNotification('Email removed locally (already deleted on server).', 'info');
+      renderScheduling();
+      return;
+    }
+    showNotification('Failed to delete email: ' + (error?.message || error), 'error');
+  }
+}
+
 // Global for inline onclick
 if (typeof window !== 'undefined') {
   window.renderScheduling = renderScheduling;
@@ -321,4 +481,5 @@ if (typeof window !== 'undefined') {
   window.openDraft = openDraft;
   window.deleteDraft = deleteDraft;
   window.deleteMessage = deleteMessage;
+  window.deleteScheduledEmail = deleteScheduledEmail;
 }

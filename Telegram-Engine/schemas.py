@@ -36,3 +36,36 @@ class SubscribeUserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class SubscribeEmailUserRequest(BaseModel):
+    email_address: str
+    user_name: str
+
+class SubscribeEmailUserResponse(BaseModel):
+    user_id: str
+    email_address: str
+    user_name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ScheduleEmailRequest(BaseModel):
+    target_user_id: List[str]
+    subject: str
+    message: str
+    scheduled_timestamp: str  # UTC timestamp string
+
+class ScheduleEmailResponse(BaseModel):
+    id: str
+    from_sender: str
+    target_user_id: List[str]
+    subject: str
+    message: str
+    scheduled_timestamp: datetime
+    file_paths: Optional[List[str]] = None
+    is_sent: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -22,3 +22,150 @@ class UserSignIn(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+# --- Workspace Schemas (User-facing: "Project") ---
+
+class WorkspaceCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    color: Optional[str] = "#14b8a6"
+
+class WorkspaceUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+
+class WorkspaceResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    color: str
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Project Schemas (User-facing: "Task") ---
+
+class ProjectCreate(BaseModel):
+    name: str
+    color: Optional[str] = "#14b8a6"
+    workspace_id: Optional[str] = None
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    workspace_id: Optional[str] = None
+
+class ProjectResponse(BaseModel):
+    id: str
+    name: str
+    color: str
+    workspace_id: Optional[str] = None
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- TeamMember Schemas ---
+
+class TeamMemberCreate(BaseModel):
+    name: str
+    role: Optional[str] = ""
+    avatar_initials: Optional[str] = None
+    weekly_capacity_hours: Optional[int] = 40
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+
+class TeamMemberUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+    avatar_initials: Optional[str] = None
+    weekly_capacity_hours: Optional[int] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+class TeamMemberResponse(BaseModel):
+    id: str
+    name: str
+    role: str
+    avatar_initials: str
+    weekly_capacity_hours: int
+    email: str
+    phone: str
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- TimelineTask Schemas ---
+
+class TimelineTaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    project_id: str
+    assignee_id: Optional[str] = None
+    start_date: str
+    end_date: str
+    hours_per_week: Optional[int] = 8
+    status: Optional[str] = "planned"
+
+class TimelineTaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    project_id: Optional[str] = None
+    assignee_id: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    hours_per_week: Optional[int] = None
+    status: Optional[str] = None
+
+class TimelineTaskResponse(BaseModel):
+    id: str
+    title: str
+    description: str
+    project_id: str
+    assignee_id: Optional[str] = None
+    start_date: str
+    end_date: str
+    hours_per_week: int
+    status: str
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Team Schemas (Groups/Classes of Members) ---
+
+class TeamCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    color: Optional[str] = "#14b8a6"
+    member_ids: Optional[str] = ""  # Comma-separated member IDs
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+    member_ids: Optional[str] = None
+
+class TeamResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    color: str
+    member_ids: str
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

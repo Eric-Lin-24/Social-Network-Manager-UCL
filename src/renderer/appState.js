@@ -5,7 +5,7 @@
 
 const AppState = {
   // Current view
-  currentView: 'dashboard',
+  currentView: 'timeline',
 
   // Documents
   documents: [],
@@ -23,10 +23,16 @@ const AppState = {
     subscribedChats: null
   },
 
-  // Messaging
+  // Messaging (Telegram)
   scheduledMessages: [],
   subscribedChats: [],
   loadingSubscribedChats: false,
+
+  // Messaging (Email / Gmail)
+  scheduledEmails: [],
+  subscribedEmailUsers: [],
+  loadingSubscribedEmailUsers: false,
+  composeChannel: 'email', // 'telegram' | 'email'
 
   // File selection mode (for scheduler -> documents flow)
   fileSelectionMode: false,
@@ -37,6 +43,7 @@ const AppState = {
 
   // ✅ Prefill support for scheduleMessage page
   scheduleMessagePrefill: null, // { target_user_id: string, message_content: string }
+  messagePrefillRecipients: null, // Array of { userId, chatId, chatName, platform } – set by People page
 
   // Forms
   microsoftForms: [],
@@ -67,7 +74,28 @@ const AppState = {
   templates: [],
 
   // Connections
-  connections: []
+  connections: [],
+
+  // Timeline / Resource Planning
+  timelineProjects: [],
+  timelineTeamMembers: [],
+  timelineTasks: [],
+  timelineViewMode: 'timeline',
+  timelineZoom: 'week',
+  timelineStartDate: null,
+  timelineFilterProject: '',
+  timelineFilterPerson: '',
+
+  // Workspaces (User-facing: "Projects") - top-level grouping
+  timelineWorkspaces: [],
+
+  // Teams (Groups/Classes of Members)
+  teams: [],
+
+  // Timeline Project Index
+  timelineSelectedProject: null, // null = show project index, string = workspace id to show Gantt for
+  timelineProjectSearch: '',
+  timelineProjectViewMode: 'grid' // 'grid' | 'list'
 };
 
 // Export to global scope
