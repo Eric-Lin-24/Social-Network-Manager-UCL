@@ -98,14 +98,28 @@ function truncateText(text, maxLength = 50) {
 }
 
 /**
- * Escape HTML special characters
+ * Escape HTML special characters (safe for inserting into HTML content)
  * @param {string} text - Text to escape
  * @returns {string} Escaped text
  */
 function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Escape a string for safe use inside inline onclick/attribute values
+ * @param {string} str - String to escape
+ * @returns {string} Escaped string
+ */
+function escapeAttr(str) {
+  if (!str) return '';
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 /**
@@ -133,6 +147,122 @@ function getRelativeTime(dateString) {
   return formatDate(dateString);
 }
 
+/**
+ * Pad a number to 2 digits
+ * @param {number} n
+ * @returns {string}
+ */
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * Get start of day (midnight)
+ * @param {Date} d
+ * @returns {Date}
+ */
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+/**
+ * Get end of day (23:59:59.999)
+ * @param {Date} d
+ * @returns {Date}
+ */
+function endOfDay(d) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+/**
+ * Get a local YYYY-MM-DD date key string
+ * @param {Date} dateObj
+ * @returns {string}
+ */
+function localDateKey(dateObj) {
+  const y = dateObj.getFullYear();
+  const m = pad2(dateObj.getMonth() + 1);
+  const d = pad2(dateObj.getDate());
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Convert a Date to ISO date string (YYYY-MM-DD) in local time
+ * @param {Date} date
+ * @returns {string}
+ */
+function dateToLocalISO(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+// ============================================
+// SHARED DRAFT STORAGE (localStorage per user)
+// ============================================
+
+function getDraftStorageKey() {
+  return AppState.userId ? `message_drafts_${AppState.userId}` : 'message_drafts_guest';
+}
+
+function loadDrafts() {
+  try {
+    const raw = localStorage.getItem(getDraftStorageKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDrafts(drafts) {
+  try {
+    localStorage.setItem(getDraftStorageKey(), JSON.stringify(drafts || []));
+  } catch (e) {
+    console.warn('Failed to save drafts:', e);
+  }
+}
+
+/**
+ * Get human-readable recipient name from target_user_id
+ * @param {string|string[]} targetUserId
+ * @returns {string}
+ */
+function getRecipientName(targetUserId) {
+  if (!targetUserId) return 'Unknown';
+
+  if (Array.isArray(targetUserId)) {
+    return targetUserId.map(id => {
+      const chat = (AppState.subscribedChats || []).find(c => String(c.user_id) === String(id));
+      if (chat) return chat.name || chat.chat_name || id;
+      const emailUser = (AppState.subscribedEmailUsers || []).find(u => String(u.user_id) === String(id));
+      if (emailUser) return emailUser.user_name || emailUser.email_address || id;
+      return id;
+    }).join(', ');
+  }
+
+  const chat = (AppState.subscribedChats || []).find(c => String(c.user_id) === String(targetUserId));
+  if (chat) return chat.name || chat.chat_name || targetUserId;
+  const emailUser = (AppState.subscribedEmailUsers || []).find(u => String(u.user_id) === String(targetUserId));
+  if (emailUser) return emailUser.user_name || emailUser.email_address || targetUserId;
+  return targetUserId || 'Unknown';
+}
+
+/**
+ * Add days to a date (returns new Date)
+ * @param {Date} date - The base date
+ * @param {number} n - Number of days to add (can be negative)
+ * @returns {Date} New date with days added
+ */
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
 // Export to global scope
 if (typeof window !== 'undefined') {
   window.generateId = generateId;
@@ -143,5 +273,16 @@ if (typeof window !== 'undefined') {
   window.debounce = debounce;
   window.truncateText = truncateText;
   window.escapeHtml = escapeHtml;
+  window.escapeAttr = escapeAttr;
   window.getRelativeTime = getRelativeTime;
+  window.pad2 = pad2;
+  window.startOfDay = startOfDay;
+  window.endOfDay = endOfDay;
+  window.localDateKey = localDateKey;
+  window.dateToLocalISO = dateToLocalISO;
+  window.getDraftStorageKey = getDraftStorageKey;
+  window.loadDrafts = loadDrafts;
+  window.saveDrafts = saveDrafts;
+  window.getRecipientName = getRecipientName;
+  window.addDays = addDays;
 }

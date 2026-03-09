@@ -5,38 +5,7 @@
 //  - Quick Schedule moved onto dashboard ✅ DASHBOARD ONLY
 // ============================================
 
-function _dashSafe(str = '') {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function _dashPad2(n) {
-  return String(n).padStart(2, '0');
-}
-
-function _dashStartOfDay(d) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function _dashEndOfDay(d) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
-
-function _dashLocalDateKey(dateObj) {
-  // YYYY-MM-DD in LOCAL time
-  const y = dateObj.getFullYear();
-  const m = _dashPad2(dateObj.getMonth() + 1);
-  const d = _dashPad2(dateObj.getDate());
-  return `${y}-${m}-${d}`;
-}
+// Shared utilities: escapeHtml, pad2, startOfDay, endOfDay, localDateKey (from utils.js)
 
 function _dashGetCalendarMonth() {
   // Persist month selection in AppState so navigation doesn't reset it.
@@ -94,39 +63,14 @@ function _dashStatCard({ title, value, meta, tone = 'teal', icon }) {
       <div class="stat-icon ${tone}">
         ${icon}
       </div>
-      <div class="stat-value">${_dashSafe(value)}</div>
-      <div class="stat-label">${_dashSafe(title)}</div>
-      <div class="text-xs text-muted">${_dashSafe(meta || '')}</div>
+      <div class="stat-value">${escapeHtml(value)}</div>
+      <div class="stat-label">${escapeHtml(title)}</div>
+      <div class="text-xs text-muted">${escapeHtml(meta || '')}</div>
     </div>
   `;
 }
 
-// ------------------------------
-// Draft storage (shared with Scheduling page behavior)
-// ------------------------------
-function _dashDraftStorageKey() {
-  // user-scoped drafts (same pattern as scheduling.js)
-  return AppState.userId ? `message_drafts_${AppState.userId}` : 'message_drafts_guest';
-}
-
-function _dashLoadMessageDrafts() {
-  try {
-    const raw = localStorage.getItem(_dashDraftStorageKey());
-    const parsed = raw ? JSON.parse(raw) : [];
-    AppState.messageDrafts = Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.warn('Failed to load drafts:', e);
-    AppState.messageDrafts = [];
-  }
-}
-
-function _dashSaveMessageDrafts() {
-  try {
-    localStorage.setItem(_dashDraftStorageKey(), JSON.stringify(AppState.messageDrafts || []));
-  } catch (e) {
-    console.warn('Failed to save drafts:', e);
-  }
-}
+// Draft storage: uses shared loadDrafts/saveDrafts from utils.js
 
 // ------------------------------
 // Dashboard compact calendar (dots only)
@@ -179,11 +123,11 @@ function _dashBuildMiniMonthCells(year, month, messagesByDayKey) {
   for (let i = 0; i < 42; i++) { // 6 weeks
     const d = new Date(gridStart);
     d.setDate(gridStart.getDate() + i);
-    const key = _dashLocalDateKey(d);
+    const key = localDateKey(d);
     const items = messagesByDayKey.get(key) || [];
     const isOtherMonth = d.getMonth() !== month;
 
-    const todayKey = _dashLocalDateKey(new Date());
+    const todayKey = localDateKey(new Date());
     const isToday = key === todayKey;
 
     const hasSent = items.some(m => m && m.status === 'sent');
@@ -234,7 +178,7 @@ function dashboardSaveQuickDraft() {
   if (!recipient) { showNotification('Please select a recipient', 'warning'); return; }
   if (!message.trim()) { showNotification('Please enter a message to save', 'warning'); return; }
 
-  _dashLoadMessageDrafts();
+  AppState.messageDrafts = loadDrafts();
 
   const draft = {
     id: (typeof generateId === 'function') ? generateId() : String(Date.now()),
@@ -244,7 +188,7 @@ function dashboardSaveQuickDraft() {
   };
 
   AppState.messageDrafts.unshift(draft);
-  _dashSaveMessageDrafts();
+  saveDrafts(AppState.messageDrafts);
 
   showNotification('Draft saved', 'success');
 
@@ -328,8 +272,8 @@ function renderDashboard() {
 
   // Build compact calendar data for selected month
   const { year, month } = _dashGetCalendarMonth();
-  const monthStart = _dashStartOfDay(new Date(year, month, 1));
-  const monthEnd = _dashEndOfDay(new Date(year, month + 1, 0));
+  const monthStart = startOfDay(new Date(year, month, 1));
+  const monthEnd = endOfDay(new Date(year, month + 1, 0));
 
   const messagesThisMonth = (messages || [])
     .filter(m => m && m.scheduled_time)
@@ -340,7 +284,7 @@ function renderDashboard() {
 
   const byDay = new Map();
   for (const m of messagesThisMonth) {
-    const k = _dashLocalDateKey(new Date(m.scheduled_time));
+    const k = localDateKey(new Date(m.scheduled_time));
     if (!byDay.has(k)) byDay.set(k, []);
     byDay.get(k).push(m);
   }
@@ -410,7 +354,7 @@ function renderDashboard() {
                 <option value="">Select a chat.</option>
                 ${(subscribedChats || []).map(chat =>
                   `<option value="${chat.user_id}" data-chat-id="${chat.chat_id}" data-platform="${chat.platform || 'whatsapp'}">
-                    ${_dashSafe(chat.name || chat.id)}
+                    ${escapeHtml(chat.name || chat.id)}
                   </option>`
                 ).join('')}
               </select>
@@ -465,7 +409,7 @@ function renderDashboard() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                   Prev
                 </button>
-                <div class="text-sm" style="min-width: 160px; text-align:center;">${_dashSafe(monthLabel)}</div>
+                <div class="text-sm" style="min-width: 160px; text-align:center;">${escapeHtml(monthLabel)}</div>
                 <button class="btn btn-secondary btn-sm" onclick="_dashMoveCalendarMonth(1)">
                   Next
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>

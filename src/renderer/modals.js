@@ -6,211 +6,13 @@ let selectedCloudFiles = [];
 
 /**
  * Show a modal dialog
- * @param {string} type - Type of modal to show (e.g., 'newMessage')
  */
 function showModal(type) {
-  // Redirect to dedicated schedule message page instead of showing modal
   if (type === 'newMessage') {
     navigateTo('scheduleMessage');
     return;
   }
-
-  let modalHtml = '';
-
-  switch(type) {
-    case 'newMessage_OLD':
-      // Generate options for subscribed chats
-      console.log('Generating chat options from:', AppState.subscribedChats); // Debug log
-
-      const subscribedChatsOptions = AppState.subscribedChats.map((chat, index) => {
-        // Robust field extraction
-        const chatId = chat.id || chat.chat_id || `chat_${index}`;
-        const chatName = chat.name || chat.chat_name || chatId;
-        const platform = chat.platform || 'whatsapp';
-
-        console.log(`Chat ${index}:`, { chatId, chatName, platform, raw: chat }); // Debug log
-
-        return `<option value="${chatId}" data-platform="${platform}">${chatName} (${platform})</option>`;
-      }).join('');
-
-      console.log('Generated options HTML:', subscribedChatsOptions); // Debug log
-
-      modalHtml = `
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) hideModal()">
-          <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 class="text-xl font-semibold mb-4">Schedule Message</h3>
-            <form onsubmit="scheduleMessage(event)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Messaging Platform</label>
-                <select
-                  id="msg-platform"
-                  required
-                  onchange="toggleRecipientInput()"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="whatsapp" selected>WhatsApp</option>
-                  <option value="sms">SMS</option>
-                  <option value="telegram">Telegram</option>
-                  <option value="email">Email</option>
-                </select>
-              </div>
-
-              <!-- Subscribed Chats Section -->
-              <div id="subscribed-chats-section" class="mb-4">
-                <div class="flex items-center justify-between mb-2">
-                  <label class="block text-sm font-medium text-gray-700">Subscribed Chats</label>
-                  <button
-                    type="button"
-                    onclick="refreshSubscribedChatsInModal()"
-                    class="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                    title="Refresh subscribed chats"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh
-                  </button>
-                </div>
-                ${AppState.subscribedChats.length > 0 ? `
-                  <select
-                    id="msg-subscribed-chat"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
-                    onchange="onSubscribedChatSelect()"
-                  >
-                    <option value="">-- Select from subscribed chats --</option>
-                    ${subscribedChatsOptions}
-                  </select>
-                ` : `
-                  <div class="text-sm text-gray-500 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    ${AppState.azureVmUrl ? 'No subscribed chats found. Click refresh to load.' : 'Configure Azure VM URL in Settings to load subscribed chats.'}
-                  </div>
-                `}
-              </div>
-
-              <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Recipient</label>
-                <input
-                  type="text"
-                  id="msg-recipient"
-                  required
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter recipient name or number"
-                />
-                <p class="text-xs text-gray-500 mt-1">Or select from subscribed chats above</p>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Message Content</label>
-                <textarea
-                  id="msg-content"
-                  rows="6"
-                  required
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter message content"
-                ></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Attach Files (Optional)</label>
-
-                <!-- File source tabs -->
-                <div class="flex gap-2 mb-3">
-                  <button
-                    type="button"
-                    onclick="switchFileSource('local')"
-                    id="tab-local"
-                    class="flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-blue-600 text-white"
-                  >
-                    📁 Local Files
-                  </button>
-                  <button
-                    type="button"
-                    onclick="switchFileSource('cloud')"
-                    id="tab-cloud"
-                    class="flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  >
-                    ☁️ Cloud Storage
-                  </button>
-                </div>
-
-                <!-- Local file upload -->
-                <div id="local-file-section" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer">
-                  <input
-                    type="file"
-                    id="msg-attachments"
-                    multiple
-                    class="hidden"
-                    onchange="handleFileSelect(event)"
-                  />
-                  <label for="msg-attachments" class="cursor-pointer block">
-                    <div class="flex flex-col items-center justify-center">
-                      <div class="p-3 bg-blue-100 rounded-full mb-3">
-                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                      </div>
-                      <p class="text-sm font-medium text-gray-700 mb-1">Click to upload from computer</p>
-                      <p class="text-xs text-gray-500">PDF, DOC, Images (Max 10MB each)</p>
-                    </div>
-                  </label>
-                </div>
-
-                <!-- Cloud storage file picker -->
-                <div id="cloud-file-section" class="hidden border border-gray-300 rounded-lg p-4 max-h-60 overflow-y-auto">
-                  <div class="flex items-center justify-between mb-3">
-                    <p class="text-sm font-medium text-gray-700">Select from Cloud Storage</p>
-                    <button
-                      type="button"
-                      onclick="refreshCloudFilesForPicker()"
-                      class="text-xs text-blue-600 hover:text-blue-700"
-                    >
-                      🔄 Refresh
-                    </button>
-                  </div>
-                  <div id="cloud-file-list-picker" class="space-y-2">
-                    <p class="text-sm text-gray-500 text-center py-4">Loading files...</p>
-                  </div>
-                </div>
-
-                <!-- Selected files display -->
-                <div id="file-list" class="mt-3 space-y-2"></div>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Schedule Date & Time</label>
-                <input
-                  type="datetime-local"
-                  id="msg-schedule"
-                  required
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div class="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onclick="hideModal()"
-                  class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Schedule
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      `;
-      break;
-    default:
-      alert('Modal functionality coming soon: ' + type);
-      return;
-  }
-
-  const modalContainer = document.createElement('div');
-  modalContainer.id = 'modal-overlay';
-  modalContainer.innerHTML = modalHtml;
-  document.body.appendChild(modalContainer);
+  console.warn('Unknown modal type:', type);
 }
 
 /**
@@ -550,47 +352,28 @@ async function refreshCloudFilesForPicker() {
  * @returns {Promise<File>} - Downloaded file as File object
  */
 async function downloadFileFromOneDrive(fileId, fileName) {
-  try {
-    console.log('=== DOWNLOADING FROM ONEDRIVE (FIXED) ===');
-    console.log('File ID:', fileId);
-    console.log('File Name:', fileName);
-
-    if (!AppState.isAuthenticated) {
-      throw new Error('Not authenticated with Microsoft. Please sign in.');
-    }
-
-    // IMPORTANT: get a token (main process is the source of truth)
-    const token = await window.electronAPI.getAccessToken();
-    if (!token) {
-      throw new Error('No Microsoft access token available. Please reconnect Microsoft.');
-    }
-
-    // Download content as a binary stream
-    const url = `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`;
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/octet-stream'
-      }
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Failed to download file: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`);
-    }
-
-    const blob = await res.blob();
-    console.log('Blob created:', blob.size, 'bytes, type:', blob.type);
-
-    const file = new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
-
-    console.log('✓ File object created:', file.name, file.size, 'bytes', file.type);
-    return file;
-  } catch (error) {
-    console.error('✗ Error downloading from OneDrive:', error);
-    throw error;
+  if (!AppState.isAuthenticated) {
+    throw new Error('Not authenticated with Microsoft. Please sign in.');
   }
+
+  const token = await window.electronAPI.getAccessToken();
+  if (!token) {
+    throw new Error('No Microsoft access token available. Please reconnect Microsoft.');
+  }
+
+  const url = `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream' }
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to download file: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`);
+  }
+
+  const blob = await res.blob();
+  return new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
 }
 
 
@@ -602,43 +385,17 @@ async function downloadFileFromOneDrive(fileId, fileName) {
  * @returns {Promise<File>} - Downloaded file as File object
  */
 async function downloadFileFromGoogleDrive(fileId, fileName, mimeType) {
-  console.log('=== GOOGLE DRIVE DOWNLOAD START ===');
-  console.log('File ID:', fileId);
-  console.log('File Name:', fileName);
-  console.log('MIME Type:', mimeType);
-
   try {
-    // Let main process handle the download (it has the token)
     const result = await window.electronAPI.downloadGoogleDriveFile(fileId, fileName, mimeType);
-
-    // Convert array back to Uint8Array
     const uint8Array = new Uint8Array(result.buffer);
     const blob = new Blob([uint8Array], { type: result.mimeType });
-    const file = new File([blob], result.fileName, { type: result.mimeType });
-
-    console.log('=== GOOGLE DRIVE DOWNLOAD COMPLETE ===');
-    console.log('✓ File object created:', file.name, file.size, 'bytes', file.type);
-
-    return file;
+    return new File([blob], result.fileName, { type: result.mimeType });
   } catch (error) {
-    console.error('=== GOOGLE DRIVE DOWNLOAD FAILED ===');
-    console.error('✗ Error:', error.message);
     throw new Error(`Failed to download "${fileName}" from Google Drive: ${error.message}`);
   }
 }
 
-/**
- * Helper function to format file size
- * @param {number} bytes - Size in bytes
- * @returns {string} - Formatted size string
- */
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-}
+// formatFileSize is now in utils.js — no duplicate needed here
 
 /**
  * Schedule a message with optional file attachments
@@ -702,11 +459,6 @@ async function scheduleMessage(event) {
     // Download cloud files if any are selected
     const downloadedCloudFiles = [];
 
-    console.log('=== FILE PREPARATION ===');
-    console.log('Selected cloud files:', selectedCloudFiles.length, selectedCloudFiles);
-    console.log('Local files:', localFiles.length);
-
-    // Inside scheduleMessage function, in the cloud files download loop
     if (selectedCloudFiles.length > 0) {
       showNotification(`Downloading ${selectedCloudFiles.length} file(s) from cloud storage...`, 'info');
 
@@ -740,10 +492,8 @@ async function scheduleMessage(event) {
           }
 
           downloadedCloudFiles.push(downloadedFile);
-          console.log(`✓ Downloaded: ${downloadedFile.name} (${downloadedFile.size} bytes)`);
-
         } catch (error) {
-          console.error(`✗ Failed to download ${cloudFile.name}:`, error);
+          console.error(`Failed to download ${cloudFile.name}:`, error);
           showNotification(`Failed to download ${cloudFile.name}: ${error.message}`, 'error');
           // Continue with other files instead of stopping
         }
@@ -759,12 +509,6 @@ async function scheduleMessage(event) {
 
     // Combine local and downloaded cloud files
     const allFiles = [...localFiles, ...downloadedCloudFiles];
-
-    console.log('=== FINAL FILE COUNT ===');
-    console.log('Total files to send:', allFiles.length);
-    console.log('- Local files:', localFiles.length, localFiles.map(f => f.name));
-    console.log('- Cloud files downloaded:', downloadedCloudFiles.length, downloadedCloudFiles.map(f => f.name));
-    console.log('All files:', allFiles.map(f => ({ name: f.name, size: f.size, type: f.type })));
 
     showNotification('Scheduling message...', 'info');
 
@@ -802,16 +546,6 @@ async function scheduleMessage(event) {
       'success'
     );
 
-    // Console confirmation of uploaded files
-    if (allFiles.length > 0) {
-      console.log('╔════════════════════════════════════════════════════════════╗');
-      console.log('║           FILES UPLOADED SUCCESSFULLY TO SERVER           ║');
-      console.log('╠════════════════════════════════════════════════════════════╣');
-      allFiles.forEach((file, index) => {
-        console.log(`║ [${index + 1}] ${file.name.padEnd(45)} │ ${(file.size / 1024).toFixed(1).padStart(8)} KB ║`);
-      });
-      console.log('╚════════════════════════════════════════════════════════════╝');
-    }
   } catch (error) {
     console.error('Error scheduling message:', error);
     showNotification('Failed to schedule message: ' + error.message, 'error');
@@ -835,6 +569,5 @@ if (typeof window !== 'undefined') {
   window.refreshCloudFilesForPicker = refreshCloudFilesForPicker;
   window.downloadFileFromOneDrive = downloadFileFromOneDrive;
   window.downloadFileFromGoogleDrive = downloadFileFromGoogleDrive;
-  window.formatFileSize = formatFileSize;
   window.scheduleMessage = scheduleMessage;
 }
