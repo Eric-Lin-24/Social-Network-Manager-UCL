@@ -166,6 +166,15 @@ function _tlToolbarDragEnd(e) {
 
   // Successfully placed on grid - reuse the same finish-create flow
   _tlDrag.type = 'create';
+  // Determine lane from drop target
+  const dropTarget = _tlGetDropTarget(e.clientX, e.clientY);
+  if (dropTarget && dropTarget.isAddRow) {
+    _tlDrag.laneIdx = _ganttNextLaneIndex(_tlDrag.projectId);
+  } else if (dropTarget && dropTarget.laneIdx !== undefined) {
+    _tlDrag.laneIdx = dropTarget.laneIdx;
+  } else {
+    _tlDrag.laneIdx = _ganttNextLaneIndex(_tlDrag.projectId);
+  }
   _tlFinishCreate();
 }
 
@@ -179,6 +188,12 @@ function _tlStartCreate(e, cell) {
   const projectId = cell.dataset.projectId;
   const projectColor = cell.dataset.projectColor || '#14b8a6';
   const gridRow = parseInt(cell.dataset.gridRow);
+
+  // Determine lane: existing lane if clicked on a task row, new lane if clicked on add row
+  const isAddRow = cell.classList.contains('gantt-add-cell');
+  const laneIdx = isAddRow
+    ? _ganttNextLaneIndex(projectId)
+    : (cell.dataset.laneIdx !== undefined ? parseInt(cell.dataset.laneIdx) : _ganttNextLaneIndex(projectId));
 
   // Create ghost bar in the grid
   const ghost = document.createElement('div');
@@ -199,6 +214,7 @@ function _tlStartCreate(e, cell) {
     projectId,
     projectColor,
     gridRow,
+    laneIdx,
     startCol: colIdx,
     currentCol: colIdx
   };
@@ -214,14 +230,22 @@ function _tlDragMove(e) {
     const colIdx = _tlGetColFromX(e.clientX, _tlDrag.grid);
     if (colIdx < 0) return;
 
-    // Check if mouse is over a different project row -> change color
+    // Check if mouse is over a different row -> update project/lane
     const target = _tlGetDropTarget(e.clientX, e.clientY);
-    if (target && target.projectId && target.projectId !== _tlDrag.projectId) {
-      _tlDrag.projectId = target.projectId;
-      _tlDrag.projectColor = target.projectColor || _tlDrag.projectColor;
-      _tlDrag.ghost.style.background = _tlDrag.projectColor;
+    if (target && target.projectId) {
+      if (target.projectId !== _tlDrag.projectId) {
+        _tlDrag.projectId = target.projectId;
+        _tlDrag.projectColor = target.projectColor || _tlDrag.projectColor;
+        _tlDrag.ghost.style.background = _tlDrag.projectColor;
+      }
       _tlDrag.gridRow = target.gridRow || _tlDrag.gridRow;
       _tlDrag.ghost.style.gridRow = _tlDrag.gridRow;
+      // Update lane based on where cursor is
+      if (target.isAddRow) {
+        _tlDrag.laneIdx = _ganttNextLaneIndex(_tlDrag.projectId);
+      } else if (target.laneIdx !== undefined) {
+        _tlDrag.laneIdx = target.laneIdx;
+      }
     }
 
     _tlDrag.currentCol = colIdx;
@@ -261,12 +285,18 @@ function _tlDragMove(e) {
     _tlDrag.newStartCol = newStart;
     _tlDrag.newEndCol = newEnd;
 
-    // Check for project change
+    // Check for project/lane change
     const target = _tlGetDropTarget(e.clientX, e.clientY);
     if (target && target.projectId && target.projectId !== '__orphan') {
       _tlDrag.newProjectId = target.projectId;
       _tlDrag.bar.style.background = target.projectColor || _tlDrag.originalColor;
       _tlDrag.bar.style.gridRow = target.gridRow || _tlDrag.gridRow;
+      // Track lane for the drop target
+      if (target.isAddRow) {
+        _tlDrag.newLaneIdx = _ganttNextLaneIndex(target.projectId);
+      } else if (target.laneIdx !== undefined) {
+        _tlDrag.newLaneIdx = target.laneIdx;
+      }
     }
     return;
   }
@@ -297,7 +327,7 @@ function _tlDragEnd(e) {
 }
 
 function _tlFinishCreate() {
-  const { ghost, startCol, currentCol, projectId, projectColor, gridRow, grid } = _tlDrag;
+  const { ghost, startCol, currentCol, projectId, projectColor, gridRow, laneIdx, grid } = _tlDrag;
 
   const minCol = Math.min(startCol, currentCol);
   const maxCol = Math.max(startCol, currentCol);
@@ -344,6 +374,11 @@ function _tlFinishCreate() {
         })
       });
       if (!resp.ok) throw new Error('Failed to create task');
+      const created = await resp.json();
+      // Assign the new task to the lane the user drew on
+      if (created && created.id) {
+        _ganttSetLaneIndex(projectId, created.id, laneIdx);
+      }
       showNotification('Task created: ' + title, 'success');
       await timelineRefreshData();
       renderTimeline();
@@ -454,40 +489,74 @@ function _tlStartMove(e, bar) {
   const task = (AppState.timelineTasks || []).find(t => t.id === taskId);
   if (!task) return;
 
-  const columns = _ganttGetColumns();
-  const span = _ganttTaskSpan(task, columns);
-  const grabCol = _tlGetColFromX(e.clientX, grid);
-  const project = (AppState.timelineProjects || []).find(p => p.id === task.project_id);
+  // Track click start to distinguish click from drag
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const startTime = Date.now();
+  let dragInitialized = false;
 
-  bar.style.transition = 'none';
-  bar.style.zIndex = '20';
-  bar.style.opacity = '0.85';
-  bar.style.marginLeft = '0';
-  bar.style.marginRight = '0';
+  const onMouseMove = (moveE) => {
+    const dx = moveE.clientX - startX;
+    const dy = moveE.clientY - startY;
+    // Only start actual drag if moved more than 5px
+    if (!dragInitialized && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      dragInitialized = true;
 
-  _tlDrag = {
-    type: 'move',
-    grid,
-    taskId,
-    bar,
-    columns,
-    grabCol,
-    originalStartCol: span.startCol,
-    originalEndCol: span.endCol,
-    originalColor: project ? project.color : '#14b8a6',
-    originalProjectId: task.project_id,
-    gridRow: parseInt(bar.style.gridRow) || 0,
-    newStartCol: span.startCol,
-    newEndCol: span.endCol,
-    newProjectId: null
+      const columns = _ganttGetColumns();
+      const span = _ganttTaskSpan(task, columns);
+      const grabCol = _tlGetColFromX(startX, grid, columns);
+      const project = (AppState.timelineProjects || []).find(p => p.id === task.project_id);
+
+      bar.style.transition = 'none';
+      bar.style.zIndex = '20';
+      bar.style.opacity = '0.85';
+      bar.style.marginLeft = '0';
+      bar.style.marginRight = '0';
+
+      _tlDrag = {
+        type: 'move',
+        grid,
+        taskId,
+        bar,
+        columns,
+        grabCol,
+        originalStartCol: span.startCol,
+        originalEndCol: span.endCol,
+        originalColor: project ? project.color : '#14b8a6',
+        originalProjectId: task.project_id,
+        gridRow: parseInt(bar.style.gridRow) || 0,
+        newStartCol: span.startCol,
+        newEndCol: span.endCol,
+        newProjectId: null
+      };
+    }
+
+    if (dragInitialized && _tlDrag) {
+      _tlDragMove(moveE);
+    }
   };
 
-  document.addEventListener('mousemove', _tlDragMove);
-  document.addEventListener('mouseup', _tlDragEnd);
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+
+    if (!dragInitialized) {
+      // Quick click — open edit modal directly
+      openEditTaskModal(taskId);
+    } else if (_tlDrag) {
+      // Was dragging — finish move via existing logic
+      document.removeEventListener('mousemove', _tlDragMove);
+      document.removeEventListener('mouseup', _tlDragEnd);
+      _tlFinishMove();
+    }
+  };
+
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
 }
 
 function _tlFinishMove() {
-  const { taskId, originalStartCol, originalEndCol, columns, newStartCol, newEndCol, bar, newProjectId, originalProjectId } = _tlDrag;
+  const { taskId, originalStartCol, originalEndCol, columns, newStartCol, newEndCol, bar, newProjectId, originalProjectId, newLaneIdx } = _tlDrag;
 
   bar.style.transition = '';
   bar.style.zIndex = '';
@@ -514,6 +583,13 @@ function _tlFinishMove() {
     changed = true;
   }
 
+  // Update lane assignment if task was moved to a different row
+  if (newLaneIdx !== undefined) {
+    const targetProjectId = projectId || task.project_id;
+    _ganttSetLaneIndex(targetProjectId, taskId, newLaneIdx);
+    changed = true;
+  }
+
   _tlDrag = null;
 
   if (changed) {
@@ -526,16 +602,16 @@ function _tlFinishMove() {
 
 // --- Helpers ---
 
-function _tlGetColFromX(clientX, grid) {
+function _tlGetColFromX(clientX, grid, columns) {
   if (!grid) return -1;
   const rect = grid.getBoundingClientRect();
   const x = clientX - rect.left;
   const zoom = AppState.timelineZoom || 'week';
   const colWidth = zoom === 'day' ? 36 : zoom === 'month' ? 110 : 80;
   const sidebarWidth = 280;
-  const columns = _ganttGetColumns();
+  const cols = columns || _ganttGetColumns();
   const col = Math.floor((x - sidebarWidth) / colWidth);
-  return Math.max(0, Math.min(col, columns.length - 1));
+  return Math.max(0, Math.min(col, cols.length - 1));
 }
 
 function _tlGetDropTarget(clientX, clientY) {
@@ -555,13 +631,22 @@ function _tlGetDropTarget(clientX, clientY) {
     colIdx: parseInt(cell.dataset.colIdx),
     projectId: cell.dataset.projectId,
     projectColor: cell.dataset.projectColor || '#14b8a6',
-    gridRow: parseInt(cell.dataset.gridRow) || 0
+    gridRow: parseInt(cell.dataset.gridRow) || 0,
+    laneIdx: cell.dataset.laneIdx !== undefined ? parseInt(cell.dataset.laneIdx) : undefined,
+    isAddRow: cell.classList.contains('gantt-add-cell')
   };
 }
 
 async function _tlUpdateTaskDates(taskId, startDate, endDate) {
   const task = (AppState.timelineTasks || []).find(t => t.id === taskId);
   if (!task) return;
+
+  // Optimistic local update
+  const oldStart = task.start_date;
+  const oldEnd = task.end_date;
+  task.start_date = startDate;
+  task.end_date = endDate;
+  renderTimeline();
 
   try {
     const resp = await fetch(`${AppState.authenticationUrl}/timeline-tasks/${taskId}?user_uuid=${AppState.userId}`, {
@@ -579,9 +664,11 @@ async function _tlUpdateTaskDates(taskId, startDate, endDate) {
       })
     });
     if (!resp.ok) throw new Error('Failed to update task');
-    await timelineRefreshData();
-    renderTimeline();
+    timelineRefreshData().then(() => renderTimeline());
   } catch (e) {
+    // Revert on failure
+    task.start_date = oldStart;
+    task.end_date = oldEnd;
     showNotification('Error: ' + e.message, 'error');
     renderTimeline();
   }
@@ -590,6 +677,14 @@ async function _tlUpdateTaskDates(taskId, startDate, endDate) {
 async function _tlUpdateTask(taskId, updates) {
   const task = (AppState.timelineTasks || []).find(t => t.id === taskId);
   if (!task) return;
+
+  // Optimistic local update
+  const oldValues = {};
+  for (const key of Object.keys(updates)) {
+    oldValues[key] = task[key];
+    task[key] = updates[key];
+  }
+  renderTimeline();
 
   try {
     const resp = await fetch(`${AppState.authenticationUrl}/timeline-tasks/${taskId}?user_uuid=${AppState.userId}`, {
@@ -608,14 +703,17 @@ async function _tlUpdateTask(taskId, updates) {
     });
     if (!resp.ok) throw new Error('Failed to update task');
 
-    if (updates.project_id && updates.project_id !== task.project_id) {
+    if (updates.project_id && updates.project_id !== oldValues.project_id) {
       const newProj = (AppState.timelineProjects || []).find(p => p.id === updates.project_id);
       showNotification(`Moved to ${newProj ? newProj.name : 'new project'}`, 'success');
     }
 
-    await timelineRefreshData();
-    renderTimeline();
+    timelineRefreshData().then(() => renderTimeline());
   } catch (e) {
+    // Revert on failure
+    for (const key of Object.keys(oldValues)) {
+      task[key] = oldValues[key];
+    }
     showNotification('Error: ' + e.message, 'error');
     renderTimeline();
   }

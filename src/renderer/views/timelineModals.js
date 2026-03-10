@@ -46,7 +46,13 @@ function hideTaskTooltip() {
 
 function closeTimelineModal() {
   const modal = document.getElementById('tl-modal');
-  if (modal) modal.remove();
+  if (modal) {
+    // Clean up ESC handler to prevent leaks
+    if (modal._escHandler) {
+      document.removeEventListener('keydown', modal._escHandler);
+    }
+    modal.remove();
+  }
 }
 
 function _tlModalShell(title, bodyHTML, footerHTML) {
@@ -80,9 +86,9 @@ function _tlShowModal(html) {
   const escHandler = (e) => {
     if (e.key === 'Escape') {
       closeTimelineModal();
-      document.removeEventListener('keydown', escHandler);
     }
   };
+  backdrop._escHandler = escHandler;
   document.addEventListener('keydown', escHandler);
 
   document.body.appendChild(backdrop);
@@ -517,6 +523,15 @@ async function submitEditTask(taskId) {
   const description = JSON.stringify({ notes, files });
   const status = _tlAutoStatus(start_date, end_date);
 
+  // Optimistic local update — apply changes to AppState immediately
+  const taskIdx = (AppState.timelineTasks || []).findIndex(t => t.id === taskId);
+  if (taskIdx >= 0) {
+    Object.assign(AppState.timelineTasks[taskIdx], { title, description, project_id, assignee_id, start_date, end_date, status });
+  }
+
+  closeTimelineModal();
+  renderTimeline();
+
   try {
     const resp = await fetch(`${AppState.authenticationUrl}/timeline-tasks/${taskId}?user_uuid=${AppState.userId}`, {
       method: 'PUT',
@@ -524,18 +539,18 @@ async function submitEditTask(taskId) {
       body: JSON.stringify({ title, description, project_id, assignee_id, start_date, end_date, hours_per_week: 8, status })
     });
     if (!resp.ok) throw new Error('Failed to update task');
-    closeTimelineModal();
     showNotification('Task updated', 'success');
-    await timelineRefreshData();
-    renderTimeline();
+    // Background sync — refresh data without blocking UI
+    timelineRefreshData().then(() => renderTimeline());
   } catch (e) {
     showNotification('Error: ' + e.message, 'error');
+    // Revert on failure
+    await timelineRefreshData();
+    renderTimeline();
   }
 }
 
 async function deleteTimelineTask(taskId) {
-  if (!confirm('Delete this task?')) return;
-
   try {
     const resp = await fetch(`${AppState.authenticationUrl}/timeline-tasks/${taskId}?user_uuid=${AppState.userId}`, {
       method: 'DELETE'

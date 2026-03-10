@@ -49,6 +49,57 @@ const MONTH_NAMES_FULL = [
   'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
 ];
 
+// ===== User-Driven Lane Grouping =====
+// Tasks are grouped into lanes (shared rows) based on user placement.
+// Lane assignments are stored in AppState._ganttLanes[projectId][taskId] = laneIndex.
+// Tasks with the same lane index share a grid row.
+
+function _ganttGetLaneIndex(projectId, taskId) {
+  if (!AppState._ganttLanes) AppState._ganttLanes = {};
+  if (!AppState._ganttLanes[projectId]) AppState._ganttLanes[projectId] = {};
+  const lanes = AppState._ganttLanes[projectId];
+  if (lanes[taskId] === undefined) {
+    // Assign a new lane — find max existing + 1
+    const existing = Object.values(lanes);
+    lanes[taskId] = existing.length > 0 ? Math.max(...existing) + 1 : 0;
+  }
+  return lanes[taskId];
+}
+
+function _ganttSetLaneIndex(projectId, taskId, laneIdx) {
+  if (!AppState._ganttLanes) AppState._ganttLanes = {};
+  if (!AppState._ganttLanes[projectId]) AppState._ganttLanes[projectId] = {};
+  AppState._ganttLanes[projectId][taskId] = laneIdx;
+}
+
+function _ganttNextLaneIndex(projectId) {
+  if (!AppState._ganttLanes) AppState._ganttLanes = {};
+  if (!AppState._ganttLanes[projectId]) AppState._ganttLanes[projectId] = {};
+  const existing = Object.values(AppState._ganttLanes[projectId]);
+  return existing.length > 0 ? Math.max(...existing) + 1 : 0;
+}
+
+function _ganttGroupByLane(taskList, projectId) {
+  if (!taskList || taskList.length === 0) return [];
+
+  // Ensure every task has a lane assignment
+  for (const task of taskList) {
+    _ganttGetLaneIndex(projectId, task.id);
+  }
+
+  // Group tasks by their lane index
+  const laneMap = {};
+  for (const task of taskList) {
+    const idx = AppState._ganttLanes[projectId][task.id];
+    if (!laneMap[idx]) laneMap[idx] = [];
+    laneMap[idx].push(task);
+  }
+
+  // Return sorted by lane index
+  const sortedKeys = Object.keys(laneMap).map(Number).sort((a, b) => a - b);
+  return sortedKeys.map(k => ({ laneIdx: k, tasks: laneMap[k] }));
+}
+
 // ===== Gantt Column Generation =====
 
 function _ganttGetColumns() {

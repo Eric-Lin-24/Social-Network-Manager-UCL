@@ -33,11 +33,23 @@ function _calendarSetMonth(date) {
   AppState.calendarMonthISO = dateToLocalISO(first);
 }
 
+function _calendarGetAllMessages() {
+  const msgs = (AppState.scheduledMessages || []).map(m => {
+    if (!m._platform) m._platform = m.platform || 'whatsapp';
+    return m;
+  });
+  const emails = (AppState.scheduledEmails || []).map(m => {
+    if (!m._platform) m._platform = 'email';
+    return m;
+  });
+  return msgs.concat(emails);
+}
+
 function _calendarGetMessagesByDay() {
   const map = new Map();
-  const msgs = AppState.scheduledMessages || [];
+  const all = _calendarGetAllMessages();
 
-  msgs.forEach(m => {
+  all.forEach(m => {
     const ts = m.scheduled_time || m.scheduled_timestamp;
     if (!ts) return;
     const d = new Date(ts);
@@ -162,8 +174,8 @@ function confirmDaySelectionAndGo() {
 // Day details modal helpers
 // -------------------------------
 function _calGetMessagesForDate(dateISO) {
-  const msgs = AppState.scheduledMessages || [];
-  return msgs
+  const all = _calendarGetAllMessages();
+  return all
     .filter(m => {
       const ts = m.scheduled_time || m.scheduled_timestamp;
       if (!ts) return false;
@@ -191,26 +203,47 @@ function scheduleMessageForDay(dateISO) {
 }
 
 async function deleteCalendarMessage(messageId) {
+  // Check in regular messages first, then emails
   const messages = AppState.scheduledMessages || [];
-  const idx = messages.findIndex(m =>
+  let idx = messages.findIndex(m =>
     String(m.id) === String(messageId) || String(m.server_id) === String(messageId)
   );
+  let isEmail = false;
+  let list = messages;
 
   if (idx < 0) {
-    showNotification('Message not found', 'warning');
-    return;
+    const emails = AppState.scheduledEmails || [];
+    idx = emails.findIndex(m =>
+      String(m.id) === String(messageId) || String(m.server_id) === String(messageId)
+    );
+    if (idx < 0) {
+      showNotification('Message not found', 'warning');
+      return;
+    }
+    isEmail = true;
+    list = emails;
   }
 
-  const msg = messages[idx];
+  const msg = list[idx];
   const serverMessageId = msg.server_id || msg.id;
 
   try {
-    if (window.AzureVMAPI && typeof AzureVMAPI.deleteMessage === 'function') {
-      await AzureVMAPI.deleteMessage(serverMessageId);
+    if (isEmail) {
+      if (window.AzureVMAPI && typeof AzureVMAPI.deleteEmail === 'function') {
+        await AzureVMAPI.deleteEmail(serverMessageId);
+      }
+    } else {
+      if (window.AzureVMAPI && typeof AzureVMAPI.deleteMessage === 'function') {
+        await AzureVMAPI.deleteMessage(serverMessageId);
+      }
     }
 
-    messages.splice(idx, 1);
-    AppState.scheduledMessages = messages;
+    list.splice(idx, 1);
+    if (isEmail) {
+      AppState.scheduledEmails = list;
+    } else {
+      AppState.scheduledMessages = list;
+    }
 
     showNotification('Message deleted', 'success');
 
@@ -224,8 +257,12 @@ async function deleteCalendarMessage(messageId) {
 
     const msgText = String(error?.message || error || '');
     if (msgText.includes('404') || msgText.toLowerCase().includes('not found')) {
-      messages.splice(idx, 1);
-      AppState.scheduledMessages = messages;
+      list.splice(idx, 1);
+      if (isEmail) {
+        AppState.scheduledEmails = list;
+      } else {
+        AppState.scheduledMessages = list;
+      }
       showNotification('Removed locally (already deleted on server).', 'info');
 
       const ts = msg.scheduled_time || msg.scheduled_timestamp;
@@ -312,8 +349,11 @@ function openDayDetailsModal(dateISO) {
       <div class="cal-modal-list">
         ${msgs.length ? msgs.map(m => {
           const status = (m.status === 'sent') ? 'sent' : 'pending';
+          const platform = m._platform || m.platform || 'whatsapp';
+          const platformLabel = platform === 'email' ? '✉ Email' : '💬 Telegram';
           const text = (m.message_content || m.message || '').trim() || '(no text)';
-          const filesCount = Array.isArray(m.files) ? m.files.length : (Array.isArray(m.attachments) ? m.attachments.length : 0);
+          const subjectLine = m.subject ? `<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:2px;">Subject: ${escapeHtml(m.subject)}</div>` : '';
+          const filesCount = Array.isArray(m.files) ? m.files.length : (Array.isArray(m.file_paths) ? m.file_paths.length : (Array.isArray(m.attachments) ? m.attachments.length : 0));
           const timeLabel = (() => {
             const ts = m.scheduled_time || m.scheduled_timestamp;
             if (!ts) return '';
@@ -327,9 +367,11 @@ function openDayDetailsModal(dateISO) {
               <div class="cal-msg-left">
                 <div class="cal-msg-topline">
                   <span class="cal-pill ${status}">${status}</span>
+                  <span class="cal-pill" style="background:${platform === 'email' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'};color:${platform === 'email' ? '#3b82f6' : '#10b981'};">${platformLabel}</span>
                   ${timeLabel ? `<span class="cal-msg-meta">${escapeHtml(timeLabel)}</span>` : ''}
                   <span class="cal-msg-meta">• ${filesCount} file${filesCount === 1 ? '' : 's'}</span>
                 </div>
+                ${subjectLine}
                 <div class="cal-msg-text">${escapeHtml(text)}</div>
               </div>
               <div class="cal-msg-actions">
@@ -580,9 +622,11 @@ function renderCalendar() {
 
             const preview = msgs.slice(0, 2).map(m => {
               const status = (m.status === 'sent') ? 'sent' : 'pending';
+              const plat = m._platform || m.platform || 'whatsapp';
+              const icon = plat === 'email' ? '\u2709' : '\ud83d\udcac';
               const txt = (m.message_content || m.message || '').trim();
               const safeTitle = escapeHtml(txt);
-              return `<span class="cal-chip ${status}" title="${safeTitle}">${escapeHtml(txt || '(no text)')}</span>`;
+              return `<span class="cal-chip ${status}" title="${safeTitle}">${icon} ${escapeHtml(txt || '(no text)')}</span>`;
             }).join('');
 
             const more = (count > 2) ? `<span class="cal-chip" style="opacity:0.75;">+${count - 2} more</span>` : '';

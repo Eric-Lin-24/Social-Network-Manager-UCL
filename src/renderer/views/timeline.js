@@ -248,16 +248,18 @@ function _ganttBuildChart() {
     visibleProjects = projects.filter(p => p.id === filterProject);
   }
 
-  // Build row structure: project headers, tasks, add-rows
+  // Build row structure: project headers, task lanes, add-rows
   const rows = [];
   for (const project of visibleProjects) {
     const projectTasks = tasks.filter(t => t.project_id === project.id);
     rows.push({ type: 'project', project, taskCount: projectTasks.length });
     if (!collapsed[project.id]) {
-      for (const task of projectTasks) {
-        rows.push({ type: 'task', task, project });
+      // Group tasks by user-assigned lanes
+      const lanes = _ganttGroupByLane(projectTasks, project.id);
+      for (const lane of lanes) {
+        rows.push({ type: 'lane', laneIdx: lane.laneIdx, tasks: lane.tasks, project });
       }
-      // Add-row: always show a blank row below tasks for drag-to-create new subtasks
+      // Add-row: blank row for drag-to-create (creates a new lane)
       rows.push({ type: 'add', project });
     }
   }
@@ -267,10 +269,10 @@ function _ganttBuildChart() {
     const orphanProject = { id: '__orphan', name: 'Unassigned', color: '#6b7280' };
     rows.push({ type: 'project', project: orphanProject, taskCount: orphanTasks.length });
     if (!collapsed['__orphan']) {
-      for (const task of orphanTasks) {
-        rows.push({ type: 'task', task, project: orphanProject });
+      const lanes = _ganttGroupByLane(orphanTasks, '__orphan');
+      for (const lane of lanes) {
+        rows.push({ type: 'lane', laneIdx: lane.laneIdx, tasks: lane.tasks, project: orphanProject });
       }
-      // No add-row for orphan project since it only shows up when there are already unassigned tasks
     }
   }
 
@@ -369,43 +371,49 @@ function _ganttBuildChart() {
         }
       }
 
-    } else if (row.type === 'task') {
-      const task = row.task;
-      const assigneeIds = task.assignee_id ? task.assignee_id.split(',') : [];
-      const assigneeNames = assigneeIds.map(id => {
-        const m = members.find(mm => mm.id === id);
-        return m ? escapeHtml(m.name) : null;
-      }).filter(Boolean);
+    } else if (row.type === 'lane') {
+      // Lane: one grid row with potentially multiple task bars
+      const laneTasks = row.tasks;
+      const firstTask = laneTasks[0];
+      const laneLabel = laneTasks.map(t => escapeHtml(t.title)).join(', ');
 
-      rowsHTML += `<div class="gantt-task-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="openEditTaskModal('${task.id}')">
-        ${escapeHtml(task.title)}
+      rowsHTML += `<div class="gantt-task-label" style="grid-row: ${gridRow}; grid-column: 1;" onclick="openEditTaskModal('${firstTask.id}')" title="${laneLabel}">
+        ${escapeHtml(firstTask.title)}${laneTasks.length > 1 ? `<span class="gantt-lane-count">+${laneTasks.length - 1}</span>` : ''}
       </div>`;
 
       for (let i = 0; i < numCols; i++) {
         const col = columns[i];
         const todayClass = col.isToday ? ' gantt-col-today' : '';
         const weekendClass = col.isWeekend ? ' gantt-col-weekend' : '';
-        rowsHTML += `<div class="gantt-cell${todayClass}${weekendClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
+        rowsHTML += `<div class="gantt-cell${todayClass}${weekendClass}" data-project-id="${row.project.id}" data-col-idx="${i}" data-grid-row="${gridRow}" data-project-color="${row.project.color}" data-lane-idx="${row.laneIdx}" style="grid-row: ${gridRow}; grid-column: ${i + 2};"></div>`;
       }
 
-      const pos = _ganttTaskPosition(task, columns, colWidth);
-      if (pos.startCol >= 0) {
-        const gc1 = pos.startCol + 2;
-        const gc2 = pos.endCol + 3;
-        const color = row.project.color || '#14b8a6';
-        const doneClass = task.status === 'done' ? ' gantt-bar-done' : '';
-        const assigneeLabel = assigneeNames.join(', ');
+      for (const task of laneTasks) {
+        const assigneeIds = task.assignee_id ? task.assignee_id.split(',') : [];
+        const assigneeNames = assigneeIds.map(id => {
+          const m = members.find(mm => mm.id === id);
+          return m ? escapeHtml(m.name) : null;
+        }).filter(Boolean);
 
-        rowsHTML += `<div class="gantt-task-bar${doneClass}" data-task-id="${task.id}" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; margin-left: ${pos.marginLeft}px; margin-right: ${pos.marginRight}px; background: ${color};"
-          onmouseover="showTaskTooltip(event, '${task.id}')"
-          onmouseout="hideTaskTooltip()">
-          <div class="gantt-resize-handle gantt-resize-left" data-task-id="${task.id}" data-edge="left"></div>
-          <span class="gantt-bar-label">${escapeHtml(task.title)}</span>
-          <div class="gantt-resize-handle gantt-resize-right" data-task-id="${task.id}" data-edge="right"></div>
-        </div>`;
+        const pos = _ganttTaskPosition(task, columns, colWidth);
+        if (pos.startCol >= 0) {
+          const gc1 = pos.startCol + 2;
+          const gc2 = pos.endCol + 3;
+          const color = row.project.color || '#14b8a6';
+          const doneClass = task.status === 'done' ? ' gantt-bar-done' : '';
+          const assigneeLabel = assigneeNames.join(', ');
 
-        if (assigneeLabel && pos.endCol + 1 < numCols) {
-          rowsHTML += `<div class="gantt-assignee-label" style="grid-row: ${gridRow}; grid-column: ${gc2};">${assigneeLabel}</div>`;
+          rowsHTML += `<div class="gantt-task-bar${doneClass}" data-task-id="${task.id}" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; margin-left: ${pos.marginLeft}px; margin-right: ${pos.marginRight}px; background: ${color};"
+            onmouseover="showTaskTooltip(event, '${task.id}')"
+            onmouseout="hideTaskTooltip()">
+            <div class="gantt-resize-handle gantt-resize-left" data-task-id="${task.id}" data-edge="left"></div>
+            <span class="gantt-bar-label">${escapeHtml(task.title)}</span>
+            <div class="gantt-resize-handle gantt-resize-right" data-task-id="${task.id}" data-edge="right"></div>
+          </div>`;
+
+          if (assigneeLabel && pos.endCol + 1 < numCols) {
+            rowsHTML += `<div class="gantt-assignee-label" style="grid-row: ${gridRow}; grid-column: ${gc2};">${assigneeLabel}</div>`;
+          }
         }
       }
 
@@ -623,6 +631,71 @@ function _tlRenderDetailView(content) {
   }
 }
 
+
+// ===== Global Exports =====
+
+if (typeof window !== 'undefined') {
+  window.renderTimeline = renderTimeline;
+  window.timelineRefreshData = timelineRefreshData;
+  window.timelineSetZoom = timelineSetZoom;
+  window.timelineSetViewMode = timelineSetViewMode;
+  window.timelineSetFilterProject = timelineSetFilterProject;
+  window.timelineSetFilterPerson = timelineSetFilterPerson;
+  window._tlNavigate = _tlNavigate;
+  window._tlGoToToday = _tlGoToToday;
+  window._ganttToggleGroup = _ganttToggleGroup;
+  window.openCreateTaskModal = openCreateTaskModal;
+  window.openEditTaskModal = openEditTaskModal;
+  window.submitCreateTask = submitCreateTask;
+  window.submitEditTask = submitEditTask;
+  window.deleteTimelineTask = deleteTimelineTask;
+  window.closeTimelineModal = closeTimelineModal;
+  window._tlToggleTeamMembers = _tlToggleTeamMembers;
+  window.openCreateProjectModal = openCreateProjectModal;
+  window.submitCreateProject = submitCreateProject;
+  window.openCreateMemberModal = openCreateMemberModal;
+  window.submitCreateMember = submitCreateMember;
+  window.showTaskTooltip = showTaskTooltip;
+  window.hideTaskTooltip = hideTaskTooltip;
+
+  // Project index exports
+  window._tlOpenProject = _tlOpenProject;
+  window._tlBackToProjects = _tlBackToProjects;
+  window._tlProjectSearch = _tlProjectSearch;
+  window._tlSetProjectViewMode = _tlSetProjectViewMode;
+  window._tlShowProjectMenu = _tlShowProjectMenu;
+  window._tlEditProjectFromIndex = _tlEditProjectFromIndex;
+  window._tlSubmitEditProject = _tlSubmitEditProject;
+  window._tlDeleteProject = _tlDeleteProject;
+  window.openNewProjectModal = openNewProjectModal;
+  window._tlSubmitNewProject = _tlSubmitNewProject;
+
+  // File helpers
+  window._tlHandleFileSelect = _tlHandleFileSelect;
+  window._tlGetFilesFromList = _tlGetFilesFromList;
+  window._tlOpenFile = _tlOpenFile;
+}
+
+function _tlGetFilesFromList(listId) {
+  const list = document.getElementById(listId);
+  if (!list) return [];
+  const items = list.querySelectorAll('.tl-file-item');
+  return Array.from(items).map(el => ({
+    name: el.dataset.fileName || 'file',
+    path: el.dataset.filePath || ''
+  }));
+}
+
+function _tlOpenFile(filePath) {
+  try {
+    // Use Electron shell to open the file with the default application
+    const { shell } = require('electron');
+    shell.openPath(filePath);
+  } catch (e) {
+    // Fallback: try window.open
+    window.open('file:///' + filePath.replace(/\\/g, '/'));
+  }
+}
 
 // ===== Global Exports =====
 

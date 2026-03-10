@@ -482,7 +482,9 @@ async function renderPeople() {
   if (!AppState._peopleInitialLoad) {
     AppState._peopleInitialLoad = true;
     content.innerHTML = `<div class="animate-slide-up" style="padding: 48px; text-align: center;"><p style="color: var(--text-muted);">Loading team data...</p></div>`;
-    await timelineRefreshData();
+    if (typeof timelineRefreshData === 'function') {
+      await timelineRefreshData();
+    }
   }
 
   let body;
