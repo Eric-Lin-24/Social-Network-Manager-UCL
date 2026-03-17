@@ -179,6 +179,37 @@ function _ganttTaskSpan(task, columns) {
   return { startCol, endCol };
 }
 
+function _ganttTaskSegments(taskList, columns) {
+  if (!taskList || taskList.length === 0) return [];
+
+  const occupied = new Set();
+  for (const task of taskList) {
+    const span = _ganttTaskSpan(task, columns);
+    if (span.startCol < 0 || span.endCol < 0) continue;
+    for (let i = span.startCol; i <= span.endCol; i++) {
+      occupied.add(i);
+    }
+  }
+
+  const sorted = Array.from(occupied).sort((a, b) => a - b);
+  if (sorted.length === 0) return [];
+
+  const segments = [];
+  let startCol = sorted[0];
+  let endCol = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === endCol + 1) {
+      endCol = sorted[i];
+      continue;
+    }
+    segments.push({ startCol, endCol });
+    startCol = sorted[i];
+    endCol = sorted[i];
+  }
+  segments.push({ startCol, endCol });
+  return segments;
+}
+
 // Returns column span PLUS proportional pixel margins so bars
 // accurately reflect the task's real duration within each column.
 function _ganttTaskPosition(task, columns, colWidth) {

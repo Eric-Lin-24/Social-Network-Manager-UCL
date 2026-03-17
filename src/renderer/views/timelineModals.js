@@ -6,6 +6,7 @@
 // ===== Tooltip =====
 
 function showTaskTooltip(event, taskId) {
+  if (window.__tlDraggingActive) return;
   hideTaskTooltip();
   const task = (AppState.timelineTasks || []).find(t => t.id === taskId);
   if (!task) return;
@@ -558,6 +559,32 @@ async function deleteTimelineTask(taskId) {
     if (!resp.ok) throw new Error('Failed to delete task');
     closeTimelineModal();
     showNotification('Task deleted', 'success');
+    await timelineRefreshData();
+    renderTimeline();
+  } catch (e) {
+    showNotification('Error: ' + e.message, 'error');
+  }
+}
+
+async function _tlDeleteGanttProject(projectId) {
+  const project = (AppState.timelineProjects || []).find(p => p.id === projectId);
+  if (!project) return;
+
+  const taskCount = (AppState.timelineTasks || []).filter(t => t.project_id === projectId).length;
+  const msg = taskCount > 0
+    ? `Delete "${project.name}" and its ${taskCount} task${taskCount > 1 ? 's' : ''}? This cannot be undone.`
+    : `Delete "${project.name}"? This cannot be undone.`;
+
+  if (!confirm(msg)) return;
+
+  try {
+    const tasks = (AppState.timelineTasks || []).filter(t => t.project_id === projectId);
+    for (const t of tasks) {
+      await fetch(`${AppState.authenticationUrl}/timeline-tasks/${t.id}?user_uuid=${AppState.userId}`, { method: 'DELETE' });
+    }
+    const resp = await fetch(`${AppState.authenticationUrl}/projects/${projectId}?user_uuid=${AppState.userId}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Failed to delete project');
+    showNotification(`"${project.name}" deleted`, 'success');
     await timelineRefreshData();
     renderTimeline();
   } catch (e) {

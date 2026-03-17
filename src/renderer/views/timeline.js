@@ -346,6 +346,7 @@ function _ganttBuildChart() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
         <button class="gantt-add-subtask-btn" onclick="event.stopPropagation(); openCreateTaskModal('${row.project.id}')" title="Add task">+</button>
+        <button class="gantt-add-subtask-btn" onclick="event.stopPropagation(); _tlDeleteGanttProject('${row.project.id}')" title="Delete project" style="color: var(--error, #ef4444);">&times;</button>
       </div>`;
 
       for (let i = 0; i < numCols; i++) {
@@ -357,16 +358,10 @@ function _ganttBuildChart() {
       // Aggregate bar
       const projectTasks = tasks.filter(t => t.project_id === row.project.id);
       if (projectTasks.length > 0) {
-        let minStart = projectTasks[0].start_date;
-        let maxEnd = projectTasks[0].end_date;
-        for (const t of projectTasks) {
-          if (t.start_date < minStart) minStart = t.start_date;
-          if (t.end_date > maxEnd) maxEnd = t.end_date;
-        }
-        const span = _ganttTaskSpan({ start_date: minStart, end_date: maxEnd }, columns);
-        if (span.startCol >= 0) {
-          const gc1 = span.startCol + 2;
-          const gc2 = span.endCol + 3;
+        const segments = _ganttTaskSegments(projectTasks, columns);
+        for (const segment of segments) {
+          const gc1 = segment.startCol + 2;
+          const gc2 = segment.endCol + 3;
           rowsHTML += `<div class="gantt-aggregate-bar" style="grid-row: ${gridRow}; grid-column: ${gc1} / ${gc2}; background: ${row.project.color};"></div>`;
         }
       }
@@ -649,6 +644,7 @@ if (typeof window !== 'undefined') {
   window.submitCreateTask = submitCreateTask;
   window.submitEditTask = submitEditTask;
   window.deleteTimelineTask = deleteTimelineTask;
+  window._tlDeleteGanttProject = _tlDeleteGanttProject;
   window.closeTimelineModal = closeTimelineModal;
   window._tlToggleTeamMembers = _tlToggleTeamMembers;
   window.openCreateProjectModal = openCreateProjectModal;
@@ -714,6 +710,7 @@ if (typeof window !== 'undefined') {
   window.submitCreateTask = submitCreateTask;
   window.submitEditTask = submitEditTask;
   window.deleteTimelineTask = deleteTimelineTask;
+  window._tlDeleteGanttProject = _tlDeleteGanttProject;
   window.closeTimelineModal = closeTimelineModal;
   window._tlToggleTeamMembers = _tlToggleTeamMembers;
   window.openCreateProjectModal = openCreateProjectModal;

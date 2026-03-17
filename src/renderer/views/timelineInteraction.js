@@ -10,6 +10,13 @@
 let _tlDrag = null;     // Active drag/resize state
 let _tlNaming = false;  // True when inline name input is active (blocks re-render)
 
+function _tlSetDraggingState(isDragging) {
+  window.__tlDraggingActive = isDragging;
+  if (isDragging && typeof hideTaskTooltip === 'function') {
+    hideTaskTooltip();
+  }
+}
+
 function _tlAttachHandlers() {
   const grid = document.getElementById('gantt-interactive-grid');
   if (!grid) return;
@@ -58,6 +65,7 @@ function _tlGridMouseDown(e) {
 function _tlToolbarDragStart(e) {
   if (_tlNaming) return;
   e.preventDefault();
+  _tlSetDraggingState(true);
 
   const grid = document.getElementById('gantt-interactive-grid');
   if (!grid) return;
@@ -85,7 +93,9 @@ function _tlToolbarDragStart(e) {
     projectColor: '#14b8a6',
     gridRow: 0,
     startCol: -1,
-    currentCol: -1
+    currentCol: -1,
+    startClientX: e.clientX,
+    currentClientX: e.clientX
   };
 
   document.addEventListener('mousemove', _tlToolbarDragMove);
@@ -99,7 +109,26 @@ function _tlToolbarDragMove(e) {
   const grid = _tlDrag.grid;
 
   // Check if hovering over the grid
-  const target = _tlGetDropTarget(e.clientX, e.clientY);
+  let target = _tlGetDropTarget(e.clientX, e.clientY);
+
+  // Fallback: at cell borders elementFromPoint may miss the cell.
+  // If already placed, keep the placed state using the last known project and a
+  // mathematical column so the ghost doesn't bounce back.
+  if (!target && _tlDrag.placed && _tlDrag.projectId) {
+    const rect = grid.getBoundingClientRect();
+    const colIdx = _tlGetColFromX(e.clientX, grid);
+    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom &&
+        colIdx >= 0) {
+      target = {
+        projectId: _tlDrag.projectId,
+        projectColor: _tlDrag.projectColor,
+        gridRow: _tlDrag.gridRow,
+        colIdx,
+        laneIdx: _tlDrag.laneIdx
+      };
+    }
+  }
 
   if (target && target.projectId) {
     // Snap into the grid
@@ -124,8 +153,10 @@ function _tlToolbarDragMove(e) {
     const colIdx = target.colIdx;
     if (_tlDrag.startCol < 0) {
       _tlDrag.startCol = colIdx;
+      _tlDrag.startClientX = e.clientX;
     }
     _tlDrag.currentCol = colIdx;
+    _tlDrag.currentClientX = e.clientX;
     const minCol = Math.min(_tlDrag.startCol, colIdx);
     const maxCol = Math.max(_tlDrag.startCol, colIdx);
     ghost.style.gridColumn = `${minCol + 2} / ${maxCol + 3}`;
@@ -160,6 +191,7 @@ function _tlToolbarDragEnd(e) {
   if (!placed || startCol < 0 || !projectId) {
     // Dropped outside the grid - cancel
     ghost.remove();
+    _tlSetDraggingState(false);
     _tlDrag = null;
     return;
   }
@@ -183,6 +215,7 @@ function _tlToolbarDragEnd(e) {
 function _tlStartCreate(e, cell) {
   const grid = document.getElementById('gantt-interactive-grid');
   if (!grid) return;
+  _tlSetDraggingState(true);
 
   const colIdx = parseInt(cell.dataset.colIdx);
   const projectId = cell.dataset.projectId;
@@ -216,7 +249,9 @@ function _tlStartCreate(e, cell) {
     gridRow,
     laneIdx,
     startCol: colIdx,
-    currentCol: colIdx
+    currentCol: colIdx,
+    startClientX: e.clientX,
+    currentClientX: e.clientX
   };
 
   document.addEventListener('mousemove', _tlDragMove);
@@ -227,12 +262,12 @@ function _tlDragMove(e) {
   if (!_tlDrag) return;
 
   if (_tlDrag.type === 'create') {
-    const colIdx = _tlGetColFromX(e.clientX, _tlDrag.grid);
-    if (colIdx < 0) return;
-
-    // Check if mouse is over a different row -> update project/lane
+    // Use the DOM element's exact col index as primary source (avoids border misalignment).
+    // Fall back to the mathematical estimate only when at a border where no cell is returned.
     const target = _tlGetDropTarget(e.clientX, e.clientY);
+    let colIdx;
     if (target && target.projectId) {
+      colIdx = target.colIdx;
       if (target.projectId !== _tlDrag.projectId) {
         _tlDrag.projectId = target.projectId;
         _tlDrag.projectColor = target.projectColor || _tlDrag.projectColor;
@@ -240,15 +275,21 @@ function _tlDragMove(e) {
       }
       _tlDrag.gridRow = target.gridRow || _tlDrag.gridRow;
       _tlDrag.ghost.style.gridRow = _tlDrag.gridRow;
-      // Update lane based on where cursor is
       if (target.isAddRow) {
         _tlDrag.laneIdx = _ganttNextLaneIndex(_tlDrag.projectId);
       } else if (target.laneIdx !== undefined) {
         _tlDrag.laneIdx = target.laneIdx;
       }
+    } else {
+      // At a cell border or briefly off a cell — keep the last computed column
+      // to avoid the ghost snapping back. Only update via math if we have no prior state.
+      const mathCol = _tlGetColFromX(e.clientX, _tlDrag.grid);
+      if (mathCol < 0) return;
+      colIdx = _tlDrag.currentCol >= 0 ? _tlDrag.currentCol : mathCol;
     }
 
     _tlDrag.currentCol = colIdx;
+    _tlDrag.currentClientX = e.clientX;
     const minCol = Math.min(_tlDrag.startCol, colIdx);
     const maxCol = Math.max(_tlDrag.startCol, colIdx);
     _tlDrag.ghost.style.gridColumn = `${minCol + 2} / ${maxCol + 3}`;
@@ -256,8 +297,16 @@ function _tlDragMove(e) {
   }
 
   if (_tlDrag.type === 'resize') {
-    const colIdx = _tlGetColFromX(e.clientX, _tlDrag.grid);
+    const target = _tlGetDropTarget(e.clientX, e.clientY);
+    let colIdx = target && typeof target.colIdx === 'number'
+      ? target.colIdx
+      : _tlGetColFromX(e.clientX, _tlDrag.grid, _tlDrag.columns);
+    if (colIdx < 0) {
+      colIdx = typeof _tlDrag.currentCol === 'number' ? _tlDrag.currentCol : -1;
+    }
     if (colIdx < 0) return;
+    _tlDrag.currentCol = colIdx;
+    _tlDrag.currentClientX = e.clientX;
 
     if (_tlDrag.edge === 'right') {
       const endCol = Math.max(colIdx, _tlDrag.originalStartCol);
@@ -272,8 +321,16 @@ function _tlDragMove(e) {
   }
 
   if (_tlDrag.type === 'move') {
-    const colIdx = _tlGetColFromX(e.clientX, _tlDrag.grid);
+    const target = _tlGetDropTarget(e.clientX, e.clientY);
+    let colIdx = target && typeof target.colIdx === 'number'
+      ? target.colIdx
+      : _tlGetColFromX(e.clientX, _tlDrag.grid, _tlDrag.columns);
+    if (colIdx < 0) {
+      colIdx = typeof _tlDrag.currentCol === 'number' ? _tlDrag.currentCol : -1;
+    }
     if (colIdx < 0) return;
+    _tlDrag.currentCol = colIdx;
+    _tlDrag.currentClientX = e.clientX;
 
     const offset = colIdx - _tlDrag.grabCol;
     const newStart = Math.max(0, _tlDrag.originalStartCol + offset);
@@ -286,7 +343,6 @@ function _tlDragMove(e) {
     _tlDrag.newEndCol = newEnd;
 
     // Check for project/lane change
-    const target = _tlGetDropTarget(e.clientX, e.clientY);
     if (target && target.projectId && target.projectId !== '__orphan') {
       _tlDrag.newProjectId = target.projectId;
       _tlDrag.bar.style.background = target.projectColor || _tlDrag.originalColor;
@@ -324,10 +380,11 @@ function _tlDragEnd(e) {
   }
 
   _tlDrag = null;
+  _tlSetDraggingState(false);
 }
 
 function _tlFinishCreate() {
-  const { ghost, startCol, currentCol, projectId, projectColor, gridRow, laneIdx, grid } = _tlDrag;
+  const { ghost, startCol, currentCol, projectId, projectColor, gridRow, laneIdx, grid, startClientX, currentClientX } = _tlDrag;
 
   const minCol = Math.min(startCol, currentCol);
   const maxCol = Math.max(startCol, currentCol);
@@ -345,10 +402,12 @@ function _tlFinishCreate() {
   _tlNaming = true;
 
   const columns = _ganttGetColumns();
-  const startDate = columns[minCol] ? dateToLocalISO(columns[minCol].start) : dateToLocalISO(new Date());
-  const endDate = columns[maxCol] ? dateToLocalISO(columns[maxCol].end) : startDate;
-  // For end_date, use just the date part (YYYY-MM-DD)
-  const endDateISO = columns[maxCol] ? dateToLocalISO(columns[maxCol].start) : startDate;
+  const rawStartDate = _tlGetDateFromPointer(startClientX, grid, columns, startCol) || (columns[minCol] ? columns[minCol].start : new Date());
+  const rawEndDate = _tlGetDateFromPointer(currentClientX, grid, columns, currentCol) || (columns[maxCol] ? columns[maxCol].start : rawStartDate);
+  const normalizedStart = rawStartDate <= rawEndDate ? rawStartDate : rawEndDate;
+  const normalizedEnd = rawStartDate <= rawEndDate ? rawEndDate : rawStartDate;
+  const startDate = dateToLocalISO(normalizedStart);
+  const endDateISO = dateToLocalISO(normalizedEnd);
 
   let submitted = false;
 
@@ -358,6 +417,7 @@ function _tlFinishCreate() {
     const title = input.value.trim() || 'Untitled Task';
     _tlNaming = false;
     ghost.remove();
+    _tlSetDraggingState(false);
     _tlDrag = null;
 
     try {
@@ -393,6 +453,7 @@ function _tlFinishCreate() {
     submitted = true;
     _tlNaming = false;
     ghost.remove();
+    _tlSetDraggingState(false);
     _tlDrag = null;
   };
 
@@ -416,6 +477,7 @@ function _tlFinishCreate() {
 function _tlStartResize(e, handle) {
   const grid = document.getElementById('gantt-interactive-grid');
   if (!grid) return;
+  _tlSetDraggingState(true);
 
   const taskId = handle.dataset.taskId;
   const edge = handle.dataset.edge;
@@ -438,10 +500,14 @@ function _tlStartResize(e, handle) {
     edge,
     bar,
     columns,
+    originalStartDate: _tlParseDate(task.start_date),
+    originalEndDate: _tlParseDate(task.end_date),
     originalStartCol: span.startCol,
     originalEndCol: span.endCol,
     newStartCol: span.startCol,
-    newEndCol: span.endCol
+    newEndCol: span.endCol,
+    currentCol: edge === 'right' ? span.endCol : span.startCol,
+    currentClientX: e.clientX
   };
 
   document.addEventListener('mousemove', _tlDragMove);
@@ -449,7 +515,7 @@ function _tlStartResize(e, handle) {
 }
 
 function _tlFinishResize() {
-  const { taskId, edge, originalStartCol, originalEndCol, columns, newStartCol, newEndCol, bar } = _tlDrag;
+  const { taskId, edge, originalStartCol, originalEndCol, columns, newStartCol, newEndCol, bar, grid, currentClientX, originalStartDate, originalEndDate } = _tlDrag;
 
   bar.style.transition = '';
   bar.style.zIndex = '';
@@ -462,11 +528,13 @@ function _tlFinishResize() {
   let changed = false;
 
   if (edge === 'right' && newEndCol !== originalEndCol) {
-    endDate = dateToLocalISO(columns[newEndCol].start);
+    const resolvedEnd = _tlGetDateFromPointer(currentClientX, grid, columns, newEndCol) || columns[newEndCol].start;
+    endDate = dateToLocalISO(resolvedEnd < originalStartDate ? originalStartDate : resolvedEnd);
     changed = true;
   }
   if (edge === 'left' && newStartCol !== originalStartCol) {
-    startDate = dateToLocalISO(columns[newStartCol].start);
+    const resolvedStart = _tlGetDateFromPointer(currentClientX, grid, columns, newStartCol) || columns[newStartCol].start;
+    startDate = dateToLocalISO(resolvedStart > originalEndDate ? originalEndDate : resolvedStart);
     changed = true;
   }
 
@@ -477,6 +545,7 @@ function _tlFinishResize() {
   } else {
     renderTimeline();
   }
+  _tlSetDraggingState(false);
 }
 
 // --- Move ---
@@ -484,6 +553,7 @@ function _tlFinishResize() {
 function _tlStartMove(e, bar) {
   const grid = document.getElementById('gantt-interactive-grid');
   if (!grid) return;
+  _tlSetDraggingState(true);
 
   const taskId = bar.dataset.taskId;
   const task = (AppState.timelineTasks || []).find(t => t.id === taskId);
@@ -520,6 +590,11 @@ function _tlStartMove(e, bar) {
         bar,
         columns,
         grabCol,
+        grabOffsetDays: _tlDiffDays(
+          _tlParseDate(task.start_date),
+          _tlGetDateFromPointer(startX, grid, columns, grabCol) || _tlParseDate(task.start_date)
+        ),
+        durationDays: _tlDiffDays(_tlParseDate(task.start_date), _tlParseDate(task.end_date)),
         originalStartCol: span.startCol,
         originalEndCol: span.endCol,
         originalColor: project ? project.color : '#14b8a6',
@@ -527,7 +602,9 @@ function _tlStartMove(e, bar) {
         gridRow: parseInt(bar.style.gridRow) || 0,
         newStartCol: span.startCol,
         newEndCol: span.endCol,
-        newProjectId: null
+        newProjectId: null,
+        currentCol: grabCol,
+        currentClientX: startX
       };
     }
 
@@ -542,6 +619,7 @@ function _tlStartMove(e, bar) {
 
     if (!dragInitialized) {
       // Quick click — open edit modal directly
+      _tlSetDraggingState(false);
       openEditTaskModal(taskId);
     } else if (_tlDrag) {
       // Was dragging — finish move via existing logic
@@ -556,7 +634,7 @@ function _tlStartMove(e, bar) {
 }
 
 function _tlFinishMove() {
-  const { taskId, originalStartCol, originalEndCol, columns, newStartCol, newEndCol, bar, newProjectId, originalProjectId, newLaneIdx } = _tlDrag;
+  const { taskId, originalStartCol, originalEndCol, columns, newStartCol, newEndCol, bar, newProjectId, originalProjectId, newLaneIdx, grid, currentClientX, currentCol, grabOffsetDays, durationDays } = _tlDrag;
 
   bar.style.transition = '';
   bar.style.zIndex = '';
@@ -570,12 +648,19 @@ function _tlFinishMove() {
   let projectId = task.project_id;
   let changed = false;
 
-  if (newStartCol !== undefined && newStartCol !== originalStartCol) {
-    startDate = dateToLocalISO(columns[newStartCol].start);
-    changed = true;
-  }
-  if (newEndCol !== undefined && newEndCol !== originalEndCol) {
-    endDate = dateToLocalISO(columns[newEndCol].start);
+  if (
+    (newStartCol !== undefined && newStartCol !== originalStartCol) ||
+    (newEndCol !== undefined && newEndCol !== originalEndCol)
+  ) {
+    const pointerDate = _tlGetDateFromPointer(currentClientX, grid, columns, currentCol) || columns[newStartCol].start;
+    const minStart = new Date(columns[0].start);
+    const maxStart = addDays(columns[columns.length - 1].end, -durationDays);
+    let resolvedStart = addDays(pointerDate, -grabOffsetDays);
+    if (resolvedStart < minStart) resolvedStart = minStart;
+    if (resolvedStart > maxStart) resolvedStart = maxStart;
+    const resolvedEnd = addDays(resolvedStart, durationDays);
+    startDate = dateToLocalISO(resolvedStart);
+    endDate = dateToLocalISO(resolvedEnd);
     changed = true;
   }
   if (newProjectId && newProjectId !== originalProjectId) {
@@ -598,6 +683,7 @@ function _tlFinishMove() {
     // No change - treat as a click: open edit modal
     openEditTaskModal(taskId);
   }
+  _tlSetDraggingState(false);
 }
 
 // --- Helpers ---
@@ -606,22 +692,63 @@ function _tlGetColFromX(clientX, grid, columns) {
   if (!grid) return -1;
   const rect = grid.getBoundingClientRect();
   const x = clientX - rect.left;
-  const zoom = AppState.timelineZoom || 'week';
-  const colWidth = zoom === 'day' ? 36 : zoom === 'month' ? 110 : 80;
-  const sidebarWidth = 280;
+  const metrics = _tlGetGridMetrics(grid);
   const cols = columns || _ganttGetColumns();
-  const col = Math.floor((x - sidebarWidth) / colWidth);
+  const col = Math.floor((x - metrics.sidebarWidth) / metrics.colWidth);
   return Math.max(0, Math.min(col, cols.length - 1));
 }
 
+function _tlGetGridMetrics(grid) {
+  const zoom = AppState.timelineZoom || 'week';
+  const fallbackColWidth = zoom === 'day' ? 36 : zoom === 'month' ? 110 : 80;
+  const fallbackSidebarWidth = 280;
+  const computed = window.getComputedStyle(grid);
+  const template = computed.gridTemplateColumns || '';
+  const matches = template.match(/-?\d+(\.\d+)?px/g) || [];
+
+  return {
+    sidebarWidth: parseFloat(matches[0]) || fallbackSidebarWidth,
+    colWidth: parseFloat(matches[1]) || fallbackColWidth
+  };
+}
+
+function _tlDiffDays(startDate, endDate) {
+  const msPerDay = 86400000;
+  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  return Math.round((end - start) / msPerDay);
+}
+
+function _tlGetDateFromPointer(clientX, grid, columns, forcedColIdx) {
+  if (!grid || typeof clientX !== 'number') return null;
+
+  const rect = grid.getBoundingClientRect();
+  const metrics = _tlGetGridMetrics(grid);
+  const cols = columns || _ganttGetColumns();
+  const colIdx = typeof forcedColIdx === 'number' ? forcedColIdx : _tlGetColFromX(clientX, grid, cols);
+  const column = cols[colIdx];
+  if (!column) return null;
+
+  const relativeX = clientX - rect.left - metrics.sidebarWidth - (colIdx * metrics.colWidth);
+  const boundedX = Math.max(0, Math.min(relativeX, metrics.colWidth - 1));
+  const columnDays = _tlDiffDays(column.start, column.end) + 1;
+  const fraction = metrics.colWidth > 0 ? boundedX / metrics.colWidth : 0;
+  const dayOffset = Math.min(columnDays - 1, Math.floor(fraction * columnDays));
+  return addDays(column.start, dayOffset);
+}
+
 function _tlGetDropTarget(clientX, clientY) {
-  // Temporarily hide all ghosts to find the cell underneath
+  // Temporarily hide overlays so elementFromPoint can resolve the underlying cell.
   const ghosts = document.querySelectorAll('.gantt-bar-ghost');
   ghosts.forEach(g => g.style.display = 'none');
+  const activeBar = _tlDrag && _tlDrag.bar ? _tlDrag.bar : null;
+  const activeBarDisplay = activeBar ? activeBar.style.display : '';
+  if (activeBar) activeBar.style.display = 'none';
 
   const el = document.elementFromPoint(clientX, clientY);
 
   ghosts.forEach(g => g.style.display = '');
+  if (activeBar) activeBar.style.display = activeBarDisplay;
 
   if (!el) return null;
   const cell = el.closest('[data-project-id][data-col-idx]');
