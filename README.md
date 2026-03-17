@@ -1,179 +1,495 @@
-# COMMUNITY CURATOR
+# Community Curator
 
-Community Curator is a desktop dashboard for planning, scheduling, and managing community messages. It lets you attach cloud files, schedule messages across multiple days, and view everything in a calendar so nothing gets missed.
+Community Curator is a desktop planning and communications tool built around three parts:
 
-This document explains how to use the app step by step.
+- An Electron desktop app for project planning, team management, document browsing, and message composition
+- A FastAPI application backend for user accounts, workspaces, tasks, teams, and timeline data
+- A FastAPI messaging engine that schedules and delivers Telegram messages and emails
 
----
+In practice, the app acts like a lightweight operations hub for community or team coordination: you define projects, assign people, browse files from OneDrive or Google Drive, and schedule outbound updates to Telegram or email recipients.
 
-## GETTING STARTED
+## What The App Does
 
-1. Launch the app.
-2. You will land on the Dashboard.
-3. Use the left navigation to move between:
+The current codebase supports these main workflows:
 
-   * Dashboard
-   * Calendar
-   * Documents
-   * Messages (Scheduling)
+- Sign up and sign in to a custom backend user account
+- Create top-level workspaces and nested projects for planning
+- Add team members with roles, contact details, and weekly capacity
+- Group people into teams
+- Create timeline tasks with date ranges, assignees, and workload estimates
+- View work in a Gantt-style timeline, list view, calendar, and people view
+- Connect Microsoft 365 and Google Drive from the Electron desktop app
+- Browse cloud files and attach them to outgoing messages
+- Schedule Telegram messages with optional attachments
+- Schedule emails with optional attachments
+- Persist message drafts locally in the desktop client
+- Auto-subscribe team member email addresses into the email delivery engine
 
-All views share the same app state, so selections carry across pages.
+## Architecture
 
----
+The repository is split into three application layers.
 
-## CONNECTING ACCOUNTS
+### 1. Electron Desktop App
 
-Before scheduling messages, you may connect cloud services:
+Root files and the `src/renderer` folder contain the desktop application:
 
-1. Open Settings
-2. Connect Google Drive (optional)
-3. Connect OneDrive (optional)
+- `main.js`: Electron main process, OAuth handling, token storage, and IPC bridges
+- `preload.js`: exposes a safe `window.electronAPI` bridge to the renderer
+- `renderer.js`: startup flow, login/register logic, and high-level app bootstrapping
+- `src/renderer/`: feature modules and UI views
 
-Once connected, cloud files can be attached when scheduling messages.
+The desktop app is responsible for:
 
-You can still schedule messages without connecting any cloud services.
+- Rendering the user interface
+- Managing local UI state
+- Signing into Microsoft and Google
+- Calling the app backend on port `8080`
+- Calling the messaging engine on port `8000`
 
----
+### 2. App Backend
 
-## DASHBOARD OVERVIEW
+`App-Backend/` is a FastAPI service focused on product data and user accounts.
 
-The Dashboard provides quick access and navigation shortcuts.
+It provides:
 
-Use it to:
+- User registration and sign-in
+- Workspaces
+- Projects
+- Team members
+- Teams
+- Timeline tasks
+- Project assignee email aggregation
 
-* Jump to the Calendar
-* Jump to Scheduling
-* Sync connected services
+Default local port:
 
-The Dashboard does not schedule messages directly.
+- `8080`
 
----
+Primary storage:
 
-## CALENDAR
+- SQLite by default in `accounts.db`
 
-The Calendar is the main planning tool.
+### 3. Telegram Engine
 
-NAVIGATING THE CALENDAR
+`Telegram-Engine/` is a second FastAPI service dedicated to outbound communications.
 
-* Use Prev / Next to move between months
-* Use Today to jump back to the current month
+It provides:
 
----
+- Telegram subscriber registration
+- Email subscriber registration
+- Telegram message scheduling
+- Email scheduling
+- Background delivery workers
+- Telegram bot polling process
+- Gmail SMTP delivery
 
-## VIEWING MESSAGES FOR A DAY
+Default local port:
 
-1. Click on any day in the calendar.
-2. A popup opens showing:
+- `8000`
 
-   * All messages scheduled for that day
-   * Message status (pending or sent)
-   * Message content
-   * Number of attached files
+Primary storage:
 
-From this popup you can:
+- SQLite by default in `scheduled_messages.db`
 
-* Delete a scheduled message
-* Schedule a new message for that specific day
+## Service Relationships
 
-If no messages exist for the day, the popup will say:
-“No messages found”
-and still allow you to schedule a message.
+The data flow looks like this:
 
----
+1. The user signs into the Electron app using the custom auth backend.
+2. The Electron app reads and writes planning data through `App-Backend`.
+3. The Electron app reads subscribed recipients and schedules outbound messages through `Telegram-Engine`.
+4. `Telegram-Engine` runs background schedulers every few seconds and sends due Telegram messages or emails.
+5. When a team member with an email is created in `App-Backend`, that backend attempts to subscribe the email into `Telegram-Engine`.
 
-## SELECTING MULTIPLE DAYS (BULK SCHEDULING)
+## Key Screens In The Desktop App
 
-1. Click “Select days” in the calendar.
-2. Click any number of days (across multiple months if needed).
-3. Selected days are highlighted.
-4. Click “Done”.
+### Projects / Timeline
 
-You will be taken to the Scheduling page with all selected days preloaded.
+The timeline area is the planning core of the app. It loads:
 
----
+- workspaces
+- projects
+- team members
+- teams
+- timeline tasks
 
-## SCHEDULING MESSAGES
+It supports Gantt and list views, zoom levels, filtering, and assignment by person or team.
 
-The Scheduling page is where messages are created and sent.
+### People
 
-STEP 1: CHOOSE RECIPIENTS
+The People area focuses on:
 
-* Select one or more subscribed chats.
-* At least one recipient is required.
+- team members
+- capacity and workload context
+- teams and team composition
+- email linkage to subscribed email recipients
 
-STEP 2: WRITE YOUR MESSAGE
+### Calendar
 
-* Enter your message text.
-* Message content is preserved when switching tabs.
+The calendar view surfaces scheduled work and message-related activity from the renderer state.
 
-STEP 3: CHOOSE DAYS AND TIME
+### Messages
 
-* Selected days come from:
+The scheduling area combines:
 
-  * the Calendar “Select days” flow, or
-  * the “Schedule message for this day” button in the calendar popup
-* All selected days use the same scheduled time.
-* Choose a time using the time picker or quick schedule buttons.
+- a message composer
+- Telegram recipient selection
+- email recipient selection
+- attachment selection
+- queue views for Telegram and email
+- drafts
 
-STEP 4: ATTACH FILES (OPTIONAL)
+### Documents
 
-* Attach local files, or
-* Attach files from Google Drive or OneDrive
-* Cloud files are downloaded before scheduling to ensure consistency
+The documents area lets the user browse cloud files from:
 
-STEP 5: SCHEDULE
+- OneDrive via Microsoft Graph
+- Google Drive via Google APIs
 
-* Click “Schedule Message”
-* The message is scheduled for:
+These files can be attached to scheduled messages.
 
-  * every selected day
-  * every selected recipient
+### Settings
 
-Messages appear grouped (“bundled”) in the queue by day.
+Settings shows:
 
----
+- signed-in app user
+- Microsoft connection status
+- Google Drive connection status
+- Telegram subscriber status
+- placeholder WhatsApp integration
 
-## DRAFTS AND MESSAGE QUEUE
+## Authentication And Integrations
 
-DRAFTS
+### Custom App Login
 
-* Save reusable messages for later.
-* Drafts do not schedule messages until explicitly sent.
+The app uses a simple username/password flow against `App-Backend`:
 
-MESSAGE QUEUE
+- `POST /register`
+- `POST /sign-in`
 
-* Shows all scheduled messages
-* Messages are grouped by day and content
-* Displays:
+The backend returns a user object containing a `uuid`, and the renderer uses that `uuid` as `user_uuid` in most backend requests.
 
-  * recipients
-  * scheduled time
-  * message preview
-  * status
+Important note:
 
----
+- this is not token-based auth yet
+- most app backend endpoints trust the `user_uuid` query parameter directly
 
-## DELETING SCHEDULED MESSAGES
+### Microsoft 365 / OneDrive
 
-Messages can be deleted from two places.
+Electron uses `@azure/msal-node` for Microsoft authentication and persists cache data in the Electron user data directory.
 
-FROM THE CALENDAR
+Used for:
 
-1. Click a day
-2. Click the trash icon next to a message
-3. The message is removed immediately
+- user identity
+- OneDrive file browsing and download
 
-FROM THE MESSAGE QUEUE
+### Google Drive
 
-* Deleting a bundled message removes all associated scheduled instances
+Electron uses the `googleapis` package and a local OAuth callback server.
 
-Messages that are already sent may still appear for reference but cannot be undone.
+Used for:
 
----
+- Google Drive browsing
+- Google file download before attachment scheduling
 
-## PERSISTENCE AND NAVIGATION
+### Telegram
 
-* Message text, selected recipients, and selected time are preserved when switching tabs
-* Selected days remain until changed
-* You can freely navigate between Calendar, Scheduling, and Documents without losing progress
+The messaging engine includes a Telegram bot and subscriber registry:
 
+- users subscribe by sending `/start` to the bot
+- the engine maps bot chat IDs to generated user IDs
+- scheduled messages target those generated user IDs
+
+### Email / Gmail
+
+The messaging engine can send scheduled emails using Gmail SMTP with an app password.
+
+## Repository Structure
+
+```text
+.
+|-- App-Backend/
+|   |-- api.py
+|   |-- auth.py
+|   |-- database.py
+|   |-- main.py
+|   |-- models.py
+|   `-- schemas.py
+|-- Telegram-Engine/
+|   |-- api.py
+|   |-- database.py
+|   |-- gmail_messenger.py
+|   |-- main.py
+|   |-- models.py
+|   |-- scheduler.py
+|   |-- telegram_bot.py
+|   `-- telegram_messenger.py
+|-- src/renderer/
+|   |-- appState.js
+|   |-- azureVMAPI.js
+|   |-- googleDriveAPI.js
+|   |-- microsoftGraphAPI.js
+|   `-- views/
+|-- index.html
+|-- main.js
+|-- preload.js
+|-- renderer.js
+|-- simpleStore.js
+`-- package.json
+```
+
+## Running The Project
+
+This repo does not currently start all services with one command. You need to run the Python services separately from the Electron app.
+
+### Prerequisites
+
+- Node.js
+- Python 3.10+ recommended
+- A Telegram bot token if you want Telegram delivery
+- Gmail app password if you want email delivery
+- Microsoft Azure app registration for OneDrive auth
+- Google Cloud OAuth credentials for Google Drive auth
+
+### 1. Install Electron Dependencies
+
+From the repository root:
+
+```bash
+npm install
+```
+
+### 2. Configure Root `.env`
+
+Copy `.env.example` to `.env` in the repository root and fill in at least:
+
+```env
+MICROSOFT_CLIENT_ID=your_microsoft_client_id
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+AZURE_VM_URL=http://localhost:8000
+```
+
+Important note:
+
+- the current renderer state hardcodes backend URLs in `src/renderer/appState.js`
+- by default those values point at `http://20.153.191.11:8000` and `http://20.153.191.11:8080`
+- for local development, update those constants to your local services unless you intentionally want the remote VM
+
+### 3. Start The App Backend
+
+Create a virtual environment, install requirements, then run:
+
+```bash
+cd App-Backend
+pip install -r requirements.txt
+python main.py
+```
+
+This starts FastAPI on:
+
+```text
+http://localhost:8080
+```
+
+### 4. Start The Messaging Engine
+
+In a second terminal:
+
+```bash
+cd Telegram-Engine
+pip install -r requirements.txt
+python main.py
+```
+
+Recommended `.env` values for this service include:
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token
+API_BASE_URL=http://localhost:8000
+BASE_URL=http://localhost:8000
+GMAIL_ADDRESS=your_gmail_address
+GMAIL_APP_PASSWORD=your_gmail_app_password
+DATABASE_URL=sqlite:///./scheduled_messages.db
+```
+
+This starts:
+
+- FastAPI on `http://localhost:8000`
+- the Telegram bot polling process
+- the background schedulers for Telegram and email delivery
+
+### 5. Start The Electron App
+
+From the repository root:
+
+```bash
+npm start
+```
+
+Alternative:
+
+```bash
+npm run dev
+```
+
+## API Summary
+
+### App Backend (`8080`)
+
+Authentication:
+
+- `POST /register`
+- `POST /sign-in`
+
+Planning data:
+
+- `GET/POST /workspaces`
+- `GET/PUT/DELETE /workspaces/{workspace_id}`
+- `GET/POST /projects`
+- `GET/PUT/DELETE /projects/{project_id}`
+- `GET/POST /team-members`
+- `GET/PUT/DELETE /team-members/{member_id}`
+- `GET/POST /timeline-tasks`
+- `GET/PUT/DELETE /timeline-tasks/{task_id}`
+- `GET/POST /teams`
+- `GET/PUT/DELETE /teams/{team_id}`
+- `GET /projects/{project_id}/assignee-emails`
+
+Most of these require:
+
+- `user_uuid` as a query parameter
+
+### Messaging Engine (`8000`)
+
+Telegram:
+
+- `POST /schedule-message`
+- `POST /subscribe-user`
+- `GET /pending-messages`
+- `DELETE /delete-message`
+- `GET /subscribed-users`
+
+Email:
+
+- `POST /schedule-email`
+- `POST /subscribe-email-user`
+- `GET /pending-emails`
+- `DELETE /delete-email`
+- `GET /subscribed-email-users`
+
+Docs:
+
+- `GET /docs`
+
+## Data Model Overview
+
+### App Backend
+
+Core entities:
+
+- `User`
+- `Workspace`
+- `Project`
+- `TeamMember`
+- `Team`
+- `TimelineTask`
+
+The user-facing hierarchy is roughly:
+
+```text
+Workspace -> Project -> TimelineTask
+```
+
+### Messaging Engine
+
+Core entities:
+
+- `ScheduledMessage`
+- `SubscribedUser`
+- `ScheduledEmail`
+- `EmailSubscribedUser`
+
+## Persistence
+
+### Electron
+
+Electron persists local auth and app data in the app user data directory using:
+
+- MSAL cache JSON
+- a simple JSON store via `simpleStore.js`
+- browser `localStorage` for some per-user UI state and drafts
+
+### Python Services
+
+Both Python services default to SQLite:
+
+- `App-Backend/accounts.db`
+- `Telegram-Engine/scheduled_messages.db`
+
+The code also allows overriding the database URL for other SQLAlchemy-supported databases.
+
+## Development Notes
+
+### URL Configuration
+
+One of the most important implementation details in this repo is that the frontend currently contains hardcoded service URLs:
+
+- `AppState.azureVmUrl = 'http://20.153.191.11:8000'`
+- `AppState.authenticationUrl = 'http://20.153.191.11:8080'`
+
+If you run locally, update these values in `src/renderer/appState.js` or the desktop app will continue calling the remote server.
+
+### Background Scheduling
+
+The messaging engine checks for due deliveries every 5 seconds and marks them as sent after processing.
+
+### File Attachments
+
+Attachments can come from:
+
+- local files
+- OneDrive downloads
+- Google Drive downloads
+
+Uploaded files are stored in the messaging engine `uploads/` directory and then served under `/files`.
+
+## Known Limitations And Risks
+
+- Authentication is lightweight and does not currently enforce token-based authorization.
+- The root `.env.example` does not document all variables needed by the Python services.
+- Frontend service URLs are hardcoded instead of being fully environment-driven.
+- The Electron app, app backend, and messaging engine are started separately.
+- Some project naming in code is legacy or inconsistent, for example older "Scheduled Message API" labels inside the app backend.
+- WhatsApp is presented in the UI but is not implemented yet.
+- There is no unified test suite or orchestration script in the root project.
+
+## Suggested First Improvements
+
+- Move service URLs into a shared runtime configuration layer
+- Add a root bootstrap script for running all three services together
+- Replace `user_uuid` query-based trust with real authenticated API sessions or tokens
+- Split the current README content in subprojects into service-specific setup docs
+- Add automated tests for the two FastAPI services
+
+## Useful Commands
+
+```bash
+# Electron app
+npm start
+
+# Package desktop app
+npm run package
+npm run make
+
+# App backend
+cd App-Backend
+python main.py
+
+# Messaging engine
+cd Telegram-Engine
+python main.py
+```
+
+## License
+
+The root `package.json` declares the project as `MIT`, but you should confirm whether that is intended for the full multi-service repository before distributing it.
