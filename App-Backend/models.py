@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime, Boolean, JSON, Integer, Text
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
 Base = declarative_base()
@@ -50,19 +50,6 @@ class TeamMember(Base):
     weekly_capacity_hours = Column(Integer, default=40)
     email = Column(String, default="")
     phone = Column(String, default="")
-    owner_uuid = Column(String, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class Team(Base):
-    """A group/class of team members that can be assigned to tasks together."""
-    __tablename__ = "teams"
-
-    id = Column(String, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    description = Column(Text, default="")
-    color = Column(String, default="#14b8a6")
-    member_ids = Column(Text, default="")  # Comma-separated TeamMember IDs
     owner_uuid = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

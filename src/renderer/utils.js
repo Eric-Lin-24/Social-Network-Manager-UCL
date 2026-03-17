@@ -286,3 +286,25 @@ if (typeof window !== 'undefined') {
   window.getRecipientName = getRecipientName;
   window.addDays = addDays;
 }
+
+// Export for Node.js / Jest
+if (typeof module !== 'undefined') {
+  module.exports = {
+    generateId,
+    formatDate,
+    formatTime,
+    formatDateTime,
+    formatFileSize,
+    debounce,
+    truncateText,
+    escapeHtml,
+    escapeAttr,
+    getRelativeTime,
+    pad2,
+    startOfDay,
+    endOfDay,
+    localDateKey,
+    dateToLocalISO,
+    addDays,
+  };
+}

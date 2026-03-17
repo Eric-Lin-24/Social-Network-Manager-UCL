@@ -1,0 +1,49 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cc_outer" x1="10" y1="50" x2="54" y2="14" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#27C7BC"/>
+      <stop offset="1" stop-color="#5FC8FF"/>
+    </linearGradient>
+    <linearGradient id="cc_inner" x1="19" y1="47" x2="48" y2="20" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8CF2F0"/>
+      <stop offset="1" stop-color="#94D8FF"/>
+    </linearGradient>
+    <linearGradient id="cc_docs" x1="29" y1="38" x2="40" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D9ECFF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M46.9 14.2C43.2 11.4 38.4 9.7 33.2 9.7C21 9.7 11.1 19.6 11.1 31.8C11.1 44 21 53.9 33.2 53.9C38.4 53.9 43.2 52.2 46.9 49.4C48.2 48.4 48.4 46.5 47.4 45.2C46.4 43.9 44.5 43.7 43.2 44.7C40.6 46.7 37.1 47.9 33.2 47.9C24.3 47.9 17.1 40.7 17.1 31.8C17.1 22.9 24.3 15.7 33.2 15.7C37.1 15.7 40.6 16.9 43.2 18.9C44.5 19.9 46.4 19.7 47.4 18.4C48.4 17.1 48.2 15.2 46.9 14.2Z"
+    fill="url(#cc_outer)"
+  />
+
+  <path
+    d="M43.7 20.2C40.9 17.9 37.2 16.5 33.2 16.5C24.7 16.5 17.9 23.3 17.9 31.8C17.9 40.3 24.7 47.1 33.2 47.1C37.2 47.1 40.9 45.7 43.7 43.4C41.4 43 39.4 41.6 37.7 39.4C36.3 40.2 34.8 40.7 33.2 40.7C28.3 40.7 24.3 36.7 24.3 31.8C24.3 26.9 28.3 22.9 33.2 22.9C34.8 22.9 36.3 23.3 37.7 24.2C39.4 22 41.4 20.6 43.7 20.2Z"
+    fill="url(#cc_inner)"
+    fill-opacity="0.95"
+  />
+
+  <path
+    d="M32 23.4C32 22.1 33.1 21 34.4 21H43.5C44.8 21 45.9 22.1 45.9 23.4V39.4C45.9 40.7 44.8 41.8 43.5 41.8H42.3V26.9C42.3 25.6 41.2 24.5 39.9 24.5H32V23.4Z"
+    fill="#D7E7F7"
+    fill-opacity="0.8"
+  />
+
+  <path
+    d="M29.1 26.3C29.1 25 30.2 23.9 31.5 23.9H40.6C41.9 23.9 43 25 43 26.3V42.3C43 43.6 41.9 44.7 40.6 44.7H39.4V29.8C39.4 28.5 38.3 27.4 37 27.4H29.1V26.3Z"
+    fill="#E6F1FB"
+    fill-opacity="0.92"
+  />
+
+  <path
+    d="M26.2 29.4C26.2 28.1 27.3 27 28.6 27H37.4L41.5 31V45.7C41.5 47 40.4 48.1 39.1 48.1H28.6C27.3 48.1 26.2 47 26.2 45.7V29.4Z"
+    fill="url(#cc_docs)"
+  />
+
+  <path
+    d="M37.4 27V29.2C37.4 30.6 38.6 31.8 40 31.8H41.5L37.4 27Z"
+    fill="#BFD4EA"
+  />
+</svg>

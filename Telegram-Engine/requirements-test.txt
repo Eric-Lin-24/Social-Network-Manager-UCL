@@ -1,0 +1,6 @@
+# Test dependencies for Telegram-Engine
+# Install with: pip install -r requirements-test.txt
+-r requirements.txt
+pytest
+httpx
+pytest-asyncio

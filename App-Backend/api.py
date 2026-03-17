@@ -9,14 +9,11 @@ from datetime import datetime
 import uuid
 import os
 from dotenv import load_dotenv
-from fastapi.middleware.cors import CORSMiddleware
 import shutil
-import logging
-import requests as http_requests
 from pathlib import Path
 
 from database import get_db, init_db, get_user_by_username
-from models import Workspace, Project, TeamMember, TimelineTask, Team
+from models import Workspace, Project, TeamMember, TimelineTask
 from schemas import (
     User,
     UserCreate,
@@ -25,7 +22,6 @@ from schemas import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     TeamMemberCreate, TeamMemberUpdate, TeamMemberResponse,
     TimelineTaskCreate, TimelineTaskUpdate, TimelineTaskResponse,
-    TeamCreate, TeamUpdate, TeamResponse,
 )
 
 from auth import create_user, verify_password
@@ -52,33 +48,6 @@ app.add_middleware(
 
 # Base URL for file access
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
-
-# Telegram-Engine URL (mailing list service)
-TELEGRAM_ENGINE_URL = os.getenv("TELEGRAM_ENGINE_URL", "http://localhost:8000")
-
-logger = logging.getLogger(__name__)
-
-
-def _sync_email_to_mailing_list(email: str, name: str):
-    """Subscribe an email address to the Telegram-Engine mailing list.
-    Best-effort: failures are logged but do not block the caller."""
-    if not email:
-        return
-    try:
-        resp = http_requests.post(
-            f"{TELEGRAM_ENGINE_URL}/subscribe-email-user",
-            json={"email_address": email, "user_name": name},
-            timeout=5,
-        )
-        if resp.status_code == 201 or resp.status_code == 200:
-            logger.info("Subscribed %s to mailing list", email)
-        elif resp.status_code == 400:
-            # Already subscribed – not an error
-            logger.debug("Email %s already on mailing list", email)
-        else:
-            logger.warning("Mailing-list subscribe returned %s: %s", resp.status_code, resp.text)
-    except Exception as exc:
-        logger.warning("Could not reach Telegram-Engine to subscribe %s: %s", email, exc)
 
 
 @app.on_event("startup")
@@ -256,10 +225,6 @@ def create_team_member(member: TeamMemberCreate, user_uuid: str, db: Session = D
     db.add(db_member)
     db.commit()
     db.refresh(db_member)
-
-    # Auto-subscribe to mailing list if email provided
-    _sync_email_to_mailing_list(db_member.email, db_member.name)
-
     return db_member
 
 
@@ -281,16 +246,10 @@ def update_team_member(member_id: str, member: TeamMemberUpdate, user_uuid: str,
     db_m = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.owner_uuid == user_uuid).first()
     if not db_m:
         raise HTTPException(status_code=404, detail="Team member not found")
-    update_data = member.dict(exclude_unset=True)
-    for field, value in update_data.items():
+    for field, value in member.dict(exclude_unset=True).items():
         setattr(db_m, field, value)
     db.commit()
     db.refresh(db_m)
-
-    # If email was updated, subscribe the new address to the mailing list
-    if "email" in update_data and db_m.email:
-        _sync_email_to_mailing_list(db_m.email, db_m.name)
-
     return db_m
 
 
@@ -371,103 +330,6 @@ def delete_timeline_task_api(task_id: str, user_uuid: str, db: Session = Depends
     db.delete(db_task)
     db.commit()
     return {"deleted": True}
-
-
-# ============================================
-# TEAM ENDPOINTS (Groups / Classes of Members)
-# ============================================
-
-@app.post("/teams", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
-def create_team(team: TeamCreate, user_uuid: str, db: Session = Depends(get_db)):
-    db_team = Team(
-        id=str(uuid.uuid4()),
-        name=team.name,
-        description=team.description or "",
-        color=team.color or "#14b8a6",
-        member_ids=team.member_ids or "",
-        owner_uuid=user_uuid,
-    )
-    db.add(db_team)
-    db.commit()
-    db.refresh(db_team)
-    return db_team
-
-
-@app.get("/teams", response_model=List[TeamResponse])
-def list_teams(user_uuid: str, db: Session = Depends(get_db)):
-    return db.query(Team).filter(Team.owner_uuid == user_uuid).all()
-
-
-@app.get("/teams/{team_id}", response_model=TeamResponse)
-def get_team(team_id: str, user_uuid: str, db: Session = Depends(get_db)):
-    t = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
-    if not t:
-        raise HTTPException(status_code=404, detail="Team not found")
-    return t
-
-
-@app.put("/teams/{team_id}", response_model=TeamResponse)
-def update_team(team_id: str, team: TeamUpdate, user_uuid: str, db: Session = Depends(get_db)):
-    db_team = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
-    if not db_team:
-        raise HTTPException(status_code=404, detail="Team not found")
-    for field, value in team.dict(exclude_unset=True).items():
-        setattr(db_team, field, value)
-    db.commit()
-    db.refresh(db_team)
-    return db_team
-
-
-@app.delete("/teams/{team_id}")
-def delete_team(team_id: str, user_uuid: str, db: Session = Depends(get_db)):
-    db_team = db.query(Team).filter(Team.id == team_id, Team.owner_uuid == user_uuid).first()
-    if not db_team:
-        raise HTTPException(status_code=404, detail="Team not found")
-    db.delete(db_team)
-    db.commit()
-    return {"deleted": True}
-
-
-# ============================================
-# PROJECT ASSIGNEE EMAILS ENDPOINT
-# ============================================
-
-@app.get("/projects/{project_id}/assignee-emails")
-def get_project_assignee_emails(project_id: str, user_uuid: str, db: Session = Depends(get_db)):
-    """
-    Get email addresses of all team members assigned to tasks in a project.
-    Returns a list of {name, email, member_id} for members with email addresses.
-    """
-    # Get all tasks for this project
-    tasks = db.query(TimelineTask).filter(
-        TimelineTask.project_id == project_id,
-        TimelineTask.owner_uuid == user_uuid
-    ).all()
-
-    # Collect unique assignee IDs
-    assignee_ids = set()
-    for task in tasks:
-        if task.assignee_id:
-            for aid in task.assignee_id.split(","):
-                aid = aid.strip()
-                if aid:
-                    assignee_ids.add(aid)
-
-    # Get team members with emails
-    results = []
-    for aid in assignee_ids:
-        member = db.query(TeamMember).filter(
-            TeamMember.id == aid,
-            TeamMember.owner_uuid == user_uuid
-        ).first()
-        if member and member.email and member.email.strip():
-            results.append({
-                "member_id": member.id,
-                "name": member.name,
-                "email": member.email
-            })
-
-    return results
 
 
 def create_app():
