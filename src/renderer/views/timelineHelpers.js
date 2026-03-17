@@ -231,8 +231,9 @@ function _ganttTaskPosition(task, columns, colWidth) {
   const endColData   = columns[endCol];
 
   // Days in start / end columns
-  const startColDays = Math.round((startColData.end - startColData.start) / msPerDay) + 1;
-  const endColDays   = Math.round((endColData.end   - endColData.start)   / msPerDay) + 1;
+  // Math.round on a (N-days - 1ms) difference naturally rounds to N (e.g. 6.9999→7 for weeks).
+  const startColDays = Math.round((startColData.end - startColData.start) / msPerDay);
+  const endColDays   = Math.round((endColData.end   - endColData.start)   / msPerDay);
 
   // Fraction into start column where task begins
   const clampedStart = new Date(Math.max(tStart.getTime(), startColData.start.getTime()));
@@ -240,8 +241,9 @@ function _ganttTaskPosition(task, columns, colWidth) {
   const startFraction = daysIntoStart / startColDays;
 
   // Fraction into end column where task ends (inclusive day)
+  // end timestamps are 23:59:59.999 so Math.round(X.9999) = X+1, giving the correct ceiling count.
   const clampedEnd = new Date(Math.min(tEnd.getTime(), endColData.end.getTime()));
-  const daysIntoEnd = Math.round((clampedEnd - endColData.start) / msPerDay) + 1;
+  const daysIntoEnd = Math.round((clampedEnd - endColData.start) / msPerDay);
   const endFraction = daysIntoEnd / endColDays;
 
   let marginLeft  = Math.round(startFraction * colWidth);

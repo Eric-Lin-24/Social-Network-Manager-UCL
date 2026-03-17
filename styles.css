@@ -2462,7 +2462,7 @@ textarea {
   height: 6px;
   opacity: 0.4;
   align-self: center;
-  margin: 0 4px;
+  margin: 0;
   pointer-events: none;
   z-index: 2;
   position: relative;
@@ -2543,7 +2543,7 @@ textarea {
   z-index: 3;
   height: 28px;
   align-self: center;
-  margin: 0 3px;
+  margin: 0;
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, filter 0.2s ease;
   overflow: hidden;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
