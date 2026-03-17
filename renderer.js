@@ -38,39 +38,6 @@ if (typeof window.electronAPI !== 'undefined') {
 }
 
 // ============================================
-// INITIALIZATION HELPERS
-// ============================================
-
-/**
- * Initialize subscribed chats from Azure VM
- */
-async function initializeSubscribedChats() {
-  // Load saved Azure VM URL from localStorage
-  const savedUrl = localStorage.getItem('azureVmUrl');
-  if (savedUrl) {
-    AppState.azureVmUrl = savedUrl;
-  }
-
-  try {
-    await AzureVMAPI.fetchSubscribedChats();
-    console.log(`Loaded ${AppState.subscribedChats.length} subscribed chats`);
-  } catch (error) {
-    console.warn('Could not fetch subscribed chats:', error.message);
-  }
-
-  // Also fetch email subscribers
-  try {
-    if (typeof AzureVMAPI.fetchSubscribedEmailUsers === 'function') {
-      await AzureVMAPI.fetchSubscribedEmailUsers();
-      console.log(`Loaded ${AppState.subscribedEmailUsers.length} subscribed email users`);
-    }
-  } catch (error) {
-    console.warn('Could not fetch subscribed email users:', error.message);
-  }
-}
-
-
-// ============================================
 // MODAL FUNCTIONS
 // ============================================
 
@@ -577,9 +544,6 @@ function showAuthTab(tab) {
 /**
  * Handle sign in form submission
  */
-/**
- * Handle sign in form submission
- */
 async function handleSignIn(event) {
   event.preventDefault();
 
@@ -596,24 +560,15 @@ async function handleSignIn(event) {
     return;
   }
 
-  // Show loading state
   button.disabled = true;
-  button.innerHTML = '<span>Signing in.</span>';
+  button.innerHTML = '<span>Signing in...</span>';
   errorDiv.classList.add('hidden');
 
   try {
-    console.log('🔐 Attempting sign in for user:', username);
-
     const response = await fetch(`${AppState.authenticationUrl}/sign-in`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        username: username,
-        password: password
-      })
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ username, password })
     });
 
     if (!response.ok) {
@@ -628,73 +583,33 @@ async function handleSignIn(event) {
     }
 
     const data = await response.json();
-    console.log('✓ Sign in successful:', data);
-    console.log('✓ Response data:', JSON.stringify(data, null, 2));
 
-    // Save user data in memory only (not persisted)
-    // The backend returns 'uuid' field, not 'user_id'
-    AppState.userId = data.uuid || data.user_id || data.id; // Support multiple field names for compatibility
+    // Save user data in memory (backend returns 'uuid' field)
+    AppState.userId = data.uuid || data.user_id || data.id;
     AppState.username = data.username;
 
-    console.log('✓ User logged in:', AppState.username);
-    console.log('✓ User ID set to:', AppState.userId);
-
-    // ============================================
-    // RESTORE SAVED INTEGRATIONS FOR THIS USER
-    // ============================================
-    console.log('\n🔍 Checking for saved integrations for user:', AppState.userId);
-
-    // ----------------------------
-    // Microsoft (OneDrive)
-    // ----------------------------
-    const userMsTokenKey = `ms_token_${AppState.userId}`;
-    const userMsProfileKey = `ms_profile_${AppState.userId}`;
-    const savedMsToken = localStorage.getItem(userMsTokenKey);
-    const savedMsProfile = localStorage.getItem(userMsProfileKey);
-
+    // Restore saved Microsoft credentials
+    const savedMsToken = localStorage.getItem(`ms_token_${AppState.userId}`);
+    const savedMsProfile = localStorage.getItem(`ms_profile_${AppState.userId}`);
     if (savedMsToken && savedMsProfile) {
-      console.log('✅ Found saved Microsoft credentials for this user');
       AppState.accessToken = savedMsToken;
       AppState.userProfile = JSON.parse(savedMsProfile);
       AppState.isAuthenticated = true;
-      console.log('   → Microsoft account:', AppState.userProfile.email);
-      console.log('   → Microsoft credentials restored');
-    } else {
-      console.log('ℹ️  No saved Microsoft credentials for this user');
     }
 
-    // ----------------------------
-    // Google Drive
-    // ----------------------------
-    // Instead of only restoring the email string, try a real auth check
-    // (this will also enforce mismatch protection).
-    if (typeof window.GoogleDriveAPI !== 'undefined' && typeof GoogleDriveAPI.checkAuthentication === 'function') {
+    // Restore Google Drive session
+    if (typeof GoogleDriveAPI !== 'undefined' && typeof GoogleDriveAPI.checkAuthentication === 'function') {
       try {
-        const ok = await GoogleDriveAPI.checkAuthentication();
-        if (ok) {
-          console.log('✅ Google Drive session active for this user');
-          console.log('   → Google account:', AppState.googleDriveEmail);
-        } else {
-          console.log('ℹ️  No active Google Drive session for this user');
-        }
+        await GoogleDriveAPI.checkAuthentication();
       } catch (e) {
-        console.warn('ℹ️  GoogleDriveAPI.checkAuthentication() failed:', e?.message || e);
         AppState.googleDriveConnected = false;
         AppState.googleDriveEmail = '';
       }
     } else {
-      // Fallback to your previous behavior if GoogleDriveAPI isn't loaded for some reason
-      const userGoogleEmailKey = `google_email_${AppState.userId}`;
-      const savedGoogleEmail = localStorage.getItem(userGoogleEmailKey);
-
+      const savedGoogleEmail = localStorage.getItem(`google_email_${AppState.userId}`);
       if (savedGoogleEmail) {
-        console.log('✅ Found saved Google Drive connection for this user');
         AppState.googleDriveConnected = true;
         AppState.googleDriveEmail = savedGoogleEmail;
-        console.log('   → Google account:', savedGoogleEmail);
-        console.log('   → Google Drive credentials restored (email-only fallback)');
-      } else {
-        console.log('ℹ️  No saved Google Drive credentials for this user');
       }
     }
 
@@ -707,7 +622,6 @@ async function handleSignIn(event) {
       AzureVMAPI.startMessagePolling(30000);
     }
 
-    // Restore the main app layout before rendering
     restoreAppLayout();
     renderApp();
 
@@ -759,18 +673,10 @@ async function handleSignUp(event) {
   errorDiv.classList.add('hidden');
 
   try {
-    console.log('📝 Attempting sign up for user:', username);
-
     const response = await fetch(`${AppState.authenticationUrl}/register`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        username: username,
-        password: password
-      })
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ username, password })
     });
 
     if (!response.ok) {
@@ -785,12 +691,8 @@ async function handleSignUp(event) {
     }
 
     const data = await response.json();
-    console.log('✓ Sign up successful:', data);
 
-    // Show success message and redirect to sign in
-    if (typeof showNotification === 'function') {
-      showNotification('Account created successfully! Please sign in with your credentials.', 'success');
-    }
+    showNotification('Account created successfully! Please sign in with your credentials.', 'success');
 
     // Reset the form
     form.reset();
@@ -845,12 +747,7 @@ function handleLogout() {
   AppState.subscribedEmailUsers = [];
   AppState.composeChannel = 'telegram';
 
-  console.log('✓ User logged out');
-
-  // Show success message
-  if (typeof showNotification === 'function') {
-    showNotification('Logged out successfully', 'success');
-  }
+  showNotification('Logged out successfully', 'success');
 
   // Return to login screen
   setTimeout(() => {

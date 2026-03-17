@@ -4,53 +4,25 @@
 // with Message Queue + Drafts underneath, then Subscribed Chats.
 // ============================================
 
-function schedulingDraftStorageKey() {
-  return AppState.userId ? `message_drafts_${AppState.userId}` : 'message_drafts_guest';
-}
-
-function schedulingLoadDrafts() {
-  try {
-    const raw = localStorage.getItem(schedulingDraftStorageKey());
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.warn('Failed to load drafts:', e);
-    return [];
-  }
-}
-
-function schedulingSaveDrafts(drafts) {
-  try {
-    localStorage.setItem(schedulingDraftStorageKey(), JSON.stringify(drafts || []));
-  } catch (e) {
-    console.warn('Failed to save drafts:', e);
-  }
-}
+// Draft storage: uses shared loadDrafts/saveDrafts from utils.js
 
 function setSchedulingTab(tab) {
   AppState.schedulingActiveTab = tab;
   renderScheduling();
 }
 
-function getRecipientNameByUserId(userId) {
-  // Check Telegram chats first, then email users
-  const chat = (AppState.subscribedChats || []).find(c => String(c.user_id) === String(userId));
-  if (chat) return chat.name || userId || 'Unknown';
-  const emailUser = (AppState.subscribedEmailUsers || []).find(u => String(u.user_id) === String(userId));
-  if (emailUser) return emailUser.user_name || emailUser.email_address || userId || 'Unknown';
-  return userId || 'Unknown';
-}
+// Recipient name lookup: uses shared getRecipientName from utils.js
 
 // Draft actions (same storage key as composer)
 function deleteDraft(draftId) {
-  const drafts = schedulingLoadDrafts().filter(d => d.id !== draftId);
-  schedulingSaveDrafts(drafts);
+  const drafts = loadDrafts().filter(d => d.id !== draftId);
+  saveDrafts(drafts);
   showNotification('Draft deleted', 'success');
   renderScheduling();
 }
 
 function openDraft(draftId) {
-  const drafts = schedulingLoadDrafts();
+  const drafts = loadDrafts();
   const draft = drafts.find(d => d.id === draftId);
   if (!draft) {
     showNotification('Draft not found', 'error');
@@ -67,9 +39,7 @@ function openDraft(draftId) {
   try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
 }
 
-function _safeText(str = '') {
-  return String(str).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+// HTML escaping: uses shared escapeHtml from utils.js
 
 function _renderEmailQueueItems(emails) {
   if (emails.length === 0) {
@@ -90,7 +60,7 @@ function _renderEmailQueueItems(emails) {
       if (email.recipients && Array.isArray(email.recipients)) {
         recipientDisplay = email.recipients.join(', ');
       } else if (email.target_user_id) {
-        recipientDisplay = getRecipientNameByUserId(email.target_user_id);
+        recipientDisplay = getRecipientName(email.target_user_id);
       } else {
         recipientDisplay = email.recipient || 'Unknown';
       }
@@ -100,7 +70,7 @@ function _renderEmailQueueItems(emails) {
 
       var statusClass = email.status === 'sent' ? 'sent' : 'pending';
       var badgeClass = email.status === 'sent' ? 'badge-success' : 'badge-warning';
-      var timeDisplay = typeof formatDateTime === 'function' ? formatDateTime(email.scheduled_time) : _safeText(email.scheduled_time || '');
+      var timeDisplay = typeof formatDateTime === 'function' ? formatDateTime(email.scheduled_time) : escapeHtml(email.scheduled_time || '');
 
       var html = '<div class="message-item" style="animation: slideUp 0.3s ease ' + (index * 0.05) + 's both;">' +
         '<div class="message-status ' + statusClass + '"></div>' +
@@ -111,7 +81,7 @@ function _renderEmailQueueItems(emails) {
         '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>' +
         '<polyline points="22,6 12,13 2,6"/>' +
         '</svg>' +
-        '<span class="message-recipient">' + _safeText(recipientDisplay) + '</span>';
+        '<span class="message-recipient">' + escapeHtml(recipientDisplay) + '</span>';
 
       if (hasAttachments) {
         html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" title="Has attachments" style="opacity: 0.6;">' +
@@ -120,14 +90,14 @@ function _renderEmailQueueItems(emails) {
       }
 
       html += '</div>' +
-        '<span class="badge ' + badgeClass + '">' + _safeText(email.status || 'Pending') + '</span>' +
+        '<span class="badge ' + badgeClass + '">' + escapeHtml(email.status || 'Pending') + '</span>' +
         '</div>';
 
       if (email.subject) {
-        html += '<p class="text-sm font-medium" style="margin-bottom: 2px;">' + _safeText(email.subject) + '</p>';
+        html += '<p class="text-sm font-medium" style="margin-bottom: 2px;">' + escapeHtml(email.subject) + '</p>';
       }
 
-      html += '<p class="message-preview">' + _safeText(email.message_content || '') + '</p>' +
+      html += '<p class="message-preview">' + escapeHtml(email.message_content || '') + '</p>' +
         '<span class="text-xs text-muted mt-2">' + timeDisplay + '</span>' +
         '</div>' +
         '<div class="flex gap-2">' +
@@ -148,7 +118,7 @@ function renderScheduling() {
   const emails = AppState.scheduledEmails || [];
   const subscribedChats = AppState.subscribedChats || [];
   const subscribedEmailUsers = AppState.subscribedEmailUsers || [];
-  const drafts = schedulingLoadDrafts();
+  const drafts = loadDrafts();
   const activeTab = AppState.schedulingActiveTab || 'queue';
 
   // 1) Composer at the top (reuse scheduleMessage.js)
@@ -230,17 +200,17 @@ function renderScheduling() {
         ` : `
           <div class="flex flex-col">
             ${drafts.map((d, index) => {
-              const recipientName = getRecipientNameByUserId(d.target_user_id);
+              const recipientName = getRecipientName(d.target_user_id);
               return `
                 <div class="message-item" style="animation: slideUp 0.3s ease ${index * 0.05}s both;">
                   <div class="message-status pending"></div>
                   <div class="message-content">
                     <div class="flex justify-between items-start mb-1">
-                      <span class="message-recipient">${_safeText(recipientName)}</span>
+                      <span class="message-recipient">${escapeHtml(recipientName)}</span>
                       <span class="badge badge-info">draft</span>
                     </div>
-                    <p class="message-preview">${_safeText(d.message_content || '')}</p>
-                    <span class="text-xs text-muted mt-2">${typeof formatDateTime === 'function' ? formatDateTime(d.created_at) : _safeText(d.created_at || '')}</span>
+                    <p class="message-preview">${escapeHtml(d.message_content || '')}</p>
+                    <span class="text-xs text-muted mt-2">${typeof formatDateTime === 'function' ? formatDateTime(d.created_at) : escapeHtml(d.created_at || '')}</span>
                   </div>
                   <div class="flex gap-2">
                     <button class="btn btn-ghost btn-sm" onclick="openDraft('${d.id}')">Open</button>
@@ -278,7 +248,7 @@ function renderScheduling() {
               } else if (msg.target_user_id) {
                 recipientDisplay = typeof getRecipientName === 'function'
                   ? getRecipientName(msg.target_user_id)
-                  : getRecipientNameByUserId(msg.target_user_id);
+                  : getRecipientName(msg.target_user_id);
               } else {
                 recipientDisplay = msg.recipient || 'Unknown';
               }
@@ -291,17 +261,17 @@ function renderScheduling() {
                   <div class="message-content">
                     <div class="flex justify-between items-start mb-1">
                       <div class="flex items-center gap-2">
-                        <span class="message-recipient">${_safeText(recipientDisplay)}</span>
+                        <span class="message-recipient">${escapeHtml(recipientDisplay)}</span>
                         ${hasAttachments ? `
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" title="${msg.files.length} attachment(s)" style="opacity: 0.6;">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                           </svg>
                         ` : ''}
                       </div>
-                      <span class="badge ${msg.status === 'sent' ? 'badge-success' : 'badge-warning'}">${_safeText(msg.status || 'Pending')}</span>
+                      <span class="badge ${msg.status === 'sent' ? 'badge-success' : 'badge-warning'}">${escapeHtml(msg.status || 'Pending')}</span>
                     </div>
-                    <p class="message-preview">${_safeText(msg.message_content || '')}</p>
-                    <span class="text-xs text-muted mt-2">${typeof formatDateTime === 'function' ? formatDateTime(msg.scheduled_time) : _safeText(msg.scheduled_time || '')}</span>
+                    <p class="message-preview">${escapeHtml(msg.message_content || '')}</p>
+                    <span class="text-xs text-muted mt-2">${typeof formatDateTime === 'function' ? formatDateTime(msg.scheduled_time) : escapeHtml(msg.scheduled_time || '')}</span>
                   </div>
                   <div class="flex gap-2">
                     <button class="btn-icon" onclick="deleteMessage('${msg.id}')" title="Delete" style="color: var(--error);">
@@ -350,8 +320,8 @@ function renderScheduling() {
                 </svg>
               </div>
               <div class="connection-info">
-                <div class="connection-name">${_safeText(chat.name || chat.id)}</div>
-                <div class="connection-status">${_safeText(chat.type || 'Group')} • ${_safeText(chat.platform || 'WhatsApp')}</div>
+                <div class="connection-name">${escapeHtml(chat.name || chat.id)}</div>
+                <div class="connection-status">${escapeHtml(chat.type || 'Group')} • ${escapeHtml(chat.platform || 'WhatsApp')}</div>
               </div>
             </div>
           `).join('')}
@@ -402,8 +372,8 @@ function renderScheduling() {
                 </svg>
               </div>
               <div class="connection-info">
-                <div class="connection-name">${_safeText(user.user_name || user.name)}</div>
-                <div class="connection-status">${_safeText(user.email_address || '')}</div>
+                <div class="connection-name">${escapeHtml(user.user_name || user.name)}</div>
+                <div class="connection-status">${escapeHtml(user.email_address || '')}</div>
               </div>
             </div>
           `).join('')}

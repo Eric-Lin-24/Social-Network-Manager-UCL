@@ -1907,9 +1907,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -2236,9 +2234,7 @@ textarea {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -2508,6 +2504,17 @@ textarea {
   color: var(--text-primary);
 }
 
+.gantt-lane-count {
+  margin-left: 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
 .gantt-cell {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-subtle);
@@ -2759,15 +2766,13 @@ textarea {
 .tl-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   padding: 20px;
-  animation: tl-backdrop-in 0.2s ease;
+  animation: tl-backdrop-in 0.15s ease;
 }
 
 @keyframes tl-backdrop-in {

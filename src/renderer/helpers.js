@@ -1,35 +1,8 @@
 // Helper Functions Module
-// Contains utility functions for document management, subscribed chats, and help guide
-
-/**
- * Get human-readable recipient name from target_user_id
- * @param {string|string[]} targetUserId - The target user ID(s)
- * @returns {string} Human-readable name or the user_id if not found
- */
-function getRecipientName(targetUserId) {
-  if (!targetUserId) return 'Unknown';
-
-  // Handle array of user IDs
-  if (Array.isArray(targetUserId)) {
-    const names = targetUserId.map(id => {
-      const chat = (AppState.subscribedChats || []).find(c => c.user_id === id);
-      return chat ? (chat.name || chat.chat_name || id) : id;
-    });
-    return names.join(', ');
-  }
-
-  // Handle single user ID
-  const chat = (AppState.subscribedChats || []).find(c => c.user_id === targetUserId);
-  if (chat) {
-    return chat.name || chat.chat_name || targetUserId;
-  }
-
-  return targetUserId;
-}
+// Document management, subscribed chats initialization, and help guide
 
 /**
  * Switch between document sources (OneDrive or Google Drive)
- * @param {string} source - Document source ('onedrive' or 'googledrive')
  */
 function switchDocumentSource(source) {
   if (source === 'googledrive' && !AppState.googleDriveConnected) {
@@ -148,22 +121,26 @@ async function refreshGoogleDriveDocs() {
 }
 
 /**
- * Initialize subscribed chats on app startup
- * Loads Azure VM URL and fetches subscribed chats if available
+ * Initialize subscribed chats and email users on app startup
  */
 async function initializeSubscribedChats() {
-  // Try to load Azure VM URL from localStorage
   const savedAzureUrl = localStorage.getItem('azureVmUrl');
   if (savedAzureUrl) {
     AppState.azureVmUrl = savedAzureUrl;
+  }
 
-    // Attempt to fetch subscribed chats in background
-    try {
-      await AzureVMAPI.fetchSubscribedChats();
-      console.log('Subscribed chats loaded:', AppState.subscribedChats.length);
-    } catch (error) {
-      console.warn('Could not load subscribed chats on init:', error.message);
+  try {
+    await AzureVMAPI.fetchSubscribedChats();
+  } catch (error) {
+    console.warn('Could not load subscribed chats on init:', error.message);
+  }
+
+  try {
+    if (typeof AzureVMAPI.fetchSubscribedEmailUsers === 'function') {
+      await AzureVMAPI.fetchSubscribedEmailUsers();
     }
+  } catch (error) {
+    console.warn('Could not fetch subscribed email users:', error.message);
   }
 }
 

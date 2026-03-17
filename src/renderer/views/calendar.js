@@ -6,418 +6,6 @@
 // - Done (select mode) -> goes to Scheduling with selected days prefilled
 // ============================================
 
-function ensureCalendarStyles() {
-  if (document.getElementById('calendar-view-styles')) return;
-
-  const style = document.createElement('style');
-  style.id = 'calendar-view-styles';
-  style.textContent = `
-    .cal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .cal-title {
-      font-weight: 600;
-      font-size: 16px;
-    }
-
-    .cal-grid {
-      display: grid;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .cal-dow {
-      font-size: 12px;
-      color: var(--text-muted);
-      padding: 0 6px;
-      font-weight: 600;
-    }
-
-    .cal-cell {
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-tertiary);
-      border-radius: 12px;
-      padding: 10px;
-      min-height: 84px;
-      cursor: pointer;
-      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      position: relative;
-      user-select: none;
-    }
-
-    .cal-cell:hover {
-      transform: translateY(-1px);
-      border-color: var(--border-default);
-      background: var(--bg-secondary);
-    }
-
-    .cal-cell.is-outside { opacity: 0.55; }
-
-    .cal-cell.is-today {
-      border-color: var(--accent-primary);
-      background: var(--accent-primary-soft);
-    }
-
-    .cal-cell.is-selected {
-      border: 2px solid var(--accent-primary);
-      background: var(--accent-primary);
-      box-shadow: 0 0 0 4px var(--accent-primary-soft), 0 6px 16px rgba(0,0,0,0.3);
-      transform: scale(1.03);
-      z-index: 2;
-    }
-    .cal-cell.is-selected .cal-daynum,
-    .cal-cell.is-selected .cal-chip,
-    .cal-cell.is-selected .text-muted {
-      color: white !important;
-      border-color: rgba(255,255,255,0.3) !important;
-    }
-    .cal-cell.is-selected .cal-badge {
-      background: rgba(255,255,255,0.25);
-      border-color: rgba(255,255,255,0.4);
-      color: white;
-    }
-
-    .cal-cell.is-task-highlight {
-      border-color: var(--cal-highlight-color, rgba(99, 102, 241, 0.6));
-      border-width: 2px;
-      background: var(--cal-highlight-bg, rgba(99, 102, 241, 0.15));
-      box-shadow: inset 0 0 0 1px var(--cal-highlight-color, rgba(99, 102, 241, 0.3));
-    }
-    .cal-cell.is-task-highlight:hover {
-      background: var(--cal-highlight-bg-hover, rgba(99, 102, 241, 0.22));
-      box-shadow: inset 0 0 0 1px var(--cal-highlight-color, rgba(99, 102, 241, 0.5));
-    }
-
-    .cal-daynum {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .cal-badge {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.06);
-      color: var(--text-muted);
-      border: 1px solid var(--border-subtle);
-    }
-
-    .cal-chip {
-      display: block;
-      font-size: 12px;
-      padding: 6px 8px;
-      border-radius: 10px;
-      border: 1px solid var(--border-subtle);
-      background: rgba(0,0,0,0.03);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: var(--text-primary);
-    }
-
-    .cal-chip.sent { opacity: 0.8; }
-
-    .cal-chip.pending {
-      border-color: rgba(245, 158, 11, 0.35);
-      background: rgba(245, 158, 11, 0.10);
-    }
-
-    .cal-footer-note {
-      margin-top: 14px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    /* ---- Task Dots on Calendar ---- */
-    .cal-task-dots {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      flex-wrap: wrap;
-      position: absolute;
-      top: 6px;
-      right: 8px;
-    }
-    .cal-task-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-      position: relative;
-    }
-    .cal-task-dot:hover {
-      transform: scale(1.5);
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
-      z-index: 5;
-    }
-    .cal-task-dot.is-done {
-      opacity: 0.4;
-    }
-    .cal-task-dots-overflow {
-      font-size: 9px;
-      color: var(--text-muted);
-      font-weight: 600;
-      line-height: 1;
-    }
-
-    /* ---- Task Tooltip ---- */
-    .cal-task-tooltip {
-      position: fixed;
-      z-index: 99999;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-default);
-      border-radius: 10px;
-      padding: 10px 12px;
-      min-width: 200px;
-      max-width: 300px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-      pointer-events: none;
-      animation: calTooltipIn 0.12s ease;
-    }
-    @keyframes calTooltipIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .cal-task-tooltip-title {
-      font-weight: 700;
-      font-size: 13px;
-      color: var(--text-primary);
-      margin-bottom: 4px;
-    }
-    .cal-task-tooltip-project {
-      font-size: 11px;
-      font-weight: 600;
-      margin-bottom: 6px;
-    }
-    .cal-task-tooltip-meta {
-      font-size: 11px;
-      color: var(--text-muted);
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .cal-task-tooltip-meta span {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    /* ---- Task rows in day modal ---- */
-    .cal-task-row {
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-secondary);
-      border-radius: 14px;
-      padding: 12px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .cal-task-row-color {
-      width: 4px;
-      height: 36px;
-      border-radius: 2px;
-      flex-shrink: 0;
-    }
-    .cal-task-row-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .cal-task-row-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    .cal-task-row-meta {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .cal-task-row-status {
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-weight: 600;
-      flex-shrink: 0;
-    }
-
-    /* ---- Day Details Modal ---- */
-    .cal-modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      padding: 20px;
-    }
-
-    .cal-modal {
-      width: min(720px, 96vw);
-      max-height: 86vh;
-      overflow: auto;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-subtle);
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
-      padding: 16px;
-    }
-
-    .cal-modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .cal-modal-title {
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .cal-modal-subtitle {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .cal-modal-close {
-      border: none;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      cursor: pointer;
-      padding: 8px 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--text-primary);
-    }
-
-    .cal-modal-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .cal-msg-row {
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-secondary);
-      border-radius: 14px;
-      padding: 12px;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .cal-msg-left {
-      min-width: 0;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .cal-msg-topline {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .cal-pill {
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-tertiary);
-      color: var(--text-muted);
-      text-transform: lowercase;
-    }
-
-    .cal-pill.sent {
-      border-color: rgba(34,197,94,0.35);
-      background: rgba(34,197,94,0.10);
-      color: var(--success);
-    }
-
-    .cal-pill.pending {
-      border-color: rgba(245,158,11,0.35);
-      background: rgba(245,158,11,0.10);
-      color: var(--warning);
-    }
-
-    .cal-msg-text {
-      font-size: 13px;
-      color: var(--text-primary);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .cal-msg-meta {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .cal-modal-footer {
-      margin-top: 14px;
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-    }
-
-    .cal-msg-actions {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-    }
-
-    .cal-icon-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-tertiary);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.12s ease, border-color 0.12s ease;
-    }
-
-    .cal-icon-btn:hover {
-      transform: translateY(-1px);
-      border-color: var(--border-default);
-    }
-
-    .cal-icon-btn.danger {
-      color: var(--error);
-      border-color: rgba(239,68,68,0.35);
-      background: rgba(239,68,68,0.08);
-    }
-  `;
-  document.head.appendChild(style);
-}
 
 function _calStartOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -425,28 +13,16 @@ function _calStartOfMonth(date) {
 function _calEndOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
-function _calISODateOnly(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 function _calSameDay(a, b) {
   return a.getFullYear() === b.getFullYear() &&
          a.getMonth() === b.getMonth() &&
          a.getDate() === b.getDate();
 }
-function _calAddDays(d, n) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-
 function _calendarGetCurrentMonth() {
   if (!AppState.calendarMonthISO) {
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    AppState.calendarMonthISO = _calISODateOnly(first);
+    AppState.calendarMonthISO = dateToLocalISO(first);
   }
   const [y, m] = AppState.calendarMonthISO.split('-').map(Number);
   return new Date(y, (m - 1), 1);
@@ -454,20 +30,32 @@ function _calendarGetCurrentMonth() {
 
 function _calendarSetMonth(date) {
   const first = new Date(date.getFullYear(), date.getMonth(), 1);
-  AppState.calendarMonthISO = _calISODateOnly(first);
+  AppState.calendarMonthISO = dateToLocalISO(first);
+}
+
+function _calendarGetAllMessages() {
+  const msgs = (AppState.scheduledMessages || []).map(m => {
+    if (!m._platform) m._platform = m.platform || 'whatsapp';
+    return m;
+  });
+  const emails = (AppState.scheduledEmails || []).map(m => {
+    if (!m._platform) m._platform = 'email';
+    return m;
+  });
+  return msgs.concat(emails);
 }
 
 function _calendarGetMessagesByDay() {
   const map = new Map();
-  const msgs = AppState.scheduledMessages || [];
+  const all = _calendarGetAllMessages();
 
-  msgs.forEach(m => {
+  all.forEach(m => {
     const ts = m.scheduled_time || m.scheduled_timestamp;
     if (!ts) return;
     const d = new Date(ts);
     if (isNaN(d.getTime())) return;
 
-    const key = _calISODateOnly(d);
+    const key = dateToLocalISO(d);
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(m);
   });
@@ -507,7 +95,7 @@ function _calendarGetTasksByDay() {
     const end = new Date(task.end_date + 'T00:00:00');
     const cur = new Date(start);
     while (cur <= end) {
-      const key = _calISODateOnly(cur);
+      const key = dateToLocalISO(cur);
       if (!map.has(key)) map.set(key, []);
       map.get(key).push({
         id: task.id,
@@ -585,24 +173,15 @@ function confirmDaySelectionAndGo() {
 // -------------------------------
 // Day details modal helpers
 // -------------------------------
-function _calEscapeHtml(str = '') {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function _calGetMessagesForDate(dateISO) {
-  const msgs = AppState.scheduledMessages || [];
-  return msgs
+  const all = _calendarGetAllMessages();
+  return all
     .filter(m => {
       const ts = m.scheduled_time || m.scheduled_timestamp;
       if (!ts) return false;
       const d = new Date(ts);
       if (isNaN(d.getTime())) return false;
-      return _calISODateOnly(d) === dateISO;
+      return dateToLocalISO(d) === dateISO;
     })
     .sort((a, b) => {
       const ta = Date.parse(a.scheduled_time || a.scheduled_timestamp || 0) || 0;
@@ -624,31 +203,52 @@ function scheduleMessageForDay(dateISO) {
 }
 
 async function deleteCalendarMessage(messageId) {
+  // Check in regular messages first, then emails
   const messages = AppState.scheduledMessages || [];
-  const idx = messages.findIndex(m =>
+  let idx = messages.findIndex(m =>
     String(m.id) === String(messageId) || String(m.server_id) === String(messageId)
   );
+  let isEmail = false;
+  let list = messages;
 
   if (idx < 0) {
-    showNotification('Message not found', 'warning');
-    return;
+    const emails = AppState.scheduledEmails || [];
+    idx = emails.findIndex(m =>
+      String(m.id) === String(messageId) || String(m.server_id) === String(messageId)
+    );
+    if (idx < 0) {
+      showNotification('Message not found', 'warning');
+      return;
+    }
+    isEmail = true;
+    list = emails;
   }
 
-  const msg = messages[idx];
+  const msg = list[idx];
   const serverMessageId = msg.server_id || msg.id;
 
   try {
-    if (window.AzureVMAPI && typeof AzureVMAPI.deleteMessage === 'function') {
-      await AzureVMAPI.deleteMessage(serverMessageId);
+    if (isEmail) {
+      if (window.AzureVMAPI && typeof AzureVMAPI.deleteEmail === 'function') {
+        await AzureVMAPI.deleteEmail(serverMessageId);
+      }
+    } else {
+      if (window.AzureVMAPI && typeof AzureVMAPI.deleteMessage === 'function') {
+        await AzureVMAPI.deleteMessage(serverMessageId);
+      }
     }
 
-    messages.splice(idx, 1);
-    AppState.scheduledMessages = messages;
+    list.splice(idx, 1);
+    if (isEmail) {
+      AppState.scheduledEmails = list;
+    } else {
+      AppState.scheduledMessages = list;
+    }
 
     showNotification('Message deleted', 'success');
 
     const ts = msg.scheduled_time || msg.scheduled_timestamp;
-    const dayISO = ts ? _calISODateOnly(new Date(ts)) : null;
+    const dayISO = ts ? dateToLocalISO(new Date(ts)) : null;
     if (dayISO) openDayDetailsModal(dayISO);
 
     renderCalendar();
@@ -657,12 +257,16 @@ async function deleteCalendarMessage(messageId) {
 
     const msgText = String(error?.message || error || '');
     if (msgText.includes('404') || msgText.toLowerCase().includes('not found')) {
-      messages.splice(idx, 1);
-      AppState.scheduledMessages = messages;
+      list.splice(idx, 1);
+      if (isEmail) {
+        AppState.scheduledEmails = list;
+      } else {
+        AppState.scheduledMessages = list;
+      }
       showNotification('Removed locally (already deleted on server).', 'info');
 
       const ts = msg.scheduled_time || msg.scheduled_timestamp;
-      const dayISO = ts ? _calISODateOnly(new Date(ts)) : null;
+      const dayISO = ts ? dateToLocalISO(new Date(ts)) : null;
       if (dayISO) openDayDetailsModal(dayISO);
 
       renderCalendar();
@@ -704,11 +308,11 @@ function openDayDetailsModal(dateISO) {
         ${dayTasks.map(t => {
           const proj = projects.find(p => p.id === t.project_id);
           const color = proj ? proj.color : '#6b7280';
-          const projName = proj ? _calEscapeHtml(proj.name) : '';
+          const projName = proj ? escapeHtml(proj.name) : '';
           const assigneeIds = t.assignee_id ? t.assignee_id.split(',').filter(Boolean) : [];
           const assigneeNames = assigneeIds.map(id => {
             const m = members.find(mm => mm.id === id);
-            return m ? _calEscapeHtml(m.name) : null;
+            return m ? escapeHtml(m.name) : null;
           }).filter(Boolean);
 
           const statusMap = { done: { label: 'Done', bg: 'rgba(16,185,129,0.15)', color: '#10b981' }, in_progress: { label: 'In Progress', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' } };
@@ -718,14 +322,14 @@ function openDayDetailsModal(dateISO) {
             <div class="cal-task-row">
               <div class="cal-task-row-color" style="background:${color};"></div>
               <div class="cal-task-row-info">
-                <div class="cal-task-row-title">${_calEscapeHtml(t.title)}</div>
+                <div class="cal-task-row-title">${escapeHtml(t.title)}</div>
                 <div class="cal-task-row-meta">
                   ${projName ? `<span style="color:${color};font-weight:600;">${projName}</span>` : ''}
-                  <span>${_calEscapeHtml(t.start_date)} → ${_calEscapeHtml(t.end_date)}</span>
+                  <span>${escapeHtml(t.start_date)} → ${escapeHtml(t.end_date)}</span>
                   <span>${t.hours_per_week || 0}h/wk</span>
                   ${assigneeNames.length > 0 ? `<span>${assigneeNames.join(', ')}</span>` : ''}
                 </div>
-                ${t.description ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${_calEscapeHtml(t.description.length > 150 ? t.description.substring(0,150) + '...' : t.description)}</div>` : ''}
+                ${t.description ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${escapeHtml(t.description.length > 150 ? t.description.substring(0,150) + '...' : t.description)}</div>` : ''}
               </div>
               <div class="cal-task-row-status" style="background:${st.bg};color:${st.color};">${st.label}</div>
             </div>
@@ -745,8 +349,11 @@ function openDayDetailsModal(dateISO) {
       <div class="cal-modal-list">
         ${msgs.length ? msgs.map(m => {
           const status = (m.status === 'sent') ? 'sent' : 'pending';
+          const platform = m._platform || m.platform || 'whatsapp';
+          const platformLabel = platform === 'email' ? '✉ Email' : '💬 Telegram';
           const text = (m.message_content || m.message || '').trim() || '(no text)';
-          const filesCount = Array.isArray(m.files) ? m.files.length : (Array.isArray(m.attachments) ? m.attachments.length : 0);
+          const subjectLine = m.subject ? `<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:2px;">Subject: ${escapeHtml(m.subject)}</div>` : '';
+          const filesCount = Array.isArray(m.files) ? m.files.length : (Array.isArray(m.file_paths) ? m.file_paths.length : (Array.isArray(m.attachments) ? m.attachments.length : 0));
           const timeLabel = (() => {
             const ts = m.scheduled_time || m.scheduled_timestamp;
             if (!ts) return '';
@@ -760,13 +367,15 @@ function openDayDetailsModal(dateISO) {
               <div class="cal-msg-left">
                 <div class="cal-msg-topline">
                   <span class="cal-pill ${status}">${status}</span>
-                  ${timeLabel ? `<span class="cal-msg-meta">${_calEscapeHtml(timeLabel)}</span>` : ''}
+                  <span class="cal-pill" style="background:${platform === 'email' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'};color:${platform === 'email' ? '#3b82f6' : '#10b981'};">${platformLabel}</span>
+                  ${timeLabel ? `<span class="cal-msg-meta">${escapeHtml(timeLabel)}</span>` : ''}
                   <span class="cal-msg-meta">• ${filesCount} file${filesCount === 1 ? '' : 's'}</span>
                 </div>
-                <div class="cal-msg-text">${_calEscapeHtml(text)}</div>
+                ${subjectLine}
+                <div class="cal-msg-text">${escapeHtml(text)}</div>
               </div>
               <div class="cal-msg-actions">
-                <button class="cal-icon-btn danger" title="Delete message" onclick="deleteCalendarMessage('${_calEscapeHtml(deleteId)}')">
+                <button class="cal-icon-btn danger" title="Delete message" onclick="deleteCalendarMessage('${escapeHtml(deleteId)}')">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -786,11 +395,11 @@ function openDayDetailsModal(dateISO) {
   modal.id = 'cal-day-modal';
   modal.className = 'cal-modal-backdrop';
   modal.innerHTML = `
-    <div class="cal-modal" role="dialog" aria-modal="true" aria-label="Day details for ${_calEscapeHtml(dateISO)}">
+    <div class="cal-modal" role="dialog" aria-modal="true" aria-label="Day details for ${escapeHtml(dateISO)}">
       <div class="cal-modal-header">
         <div>
-          <div class="cal-modal-title">${_calEscapeHtml(title)}</div>
-          <div class="cal-modal-subtitle">${_calEscapeHtml(subtitle)}</div>
+          <div class="cal-modal-title">${escapeHtml(title)}</div>
+          <div class="cal-modal-subtitle">${escapeHtml(subtitle)}</div>
         </div>
         <button class="cal-modal-close" onclick="closeDayDetailsModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -805,7 +414,7 @@ function openDayDetailsModal(dateISO) {
 
       <div class="cal-modal-footer">
         <button class="btn btn-secondary" onclick="closeDayDetailsModal()">Done</button>
-        <button class="btn btn-primary" onclick="scheduleMessageForDay('${_calEscapeHtml(dateISO)}')">
+        <button class="btn btn-primary" onclick="scheduleMessageForDay('${escapeHtml(dateISO)}')">
           Schedule message for this day
         </button>
       </div>
@@ -878,10 +487,10 @@ function renderCalendar() {
 
   // Monday-start grid
   const startDow = (monthStart.getDay() + 6) % 7;
-  const gridStart = _calAddDays(monthStart, -startDow);
+  const gridStart = addDays(monthStart, -startDow);
 
   const days = [];
-  for (let i = 0; i < 42; i++) days.push(_calAddDays(gridStart, i));
+  for (let i = 0; i < 42; i++) days.push(addDays(gridStart, i));
 
   const byDay = _calendarGetMessagesByDay();
   const tasksByDay = _calendarGetTasksByDay();
@@ -903,7 +512,7 @@ function renderCalendar() {
       const s = new Date(t.start_date + 'T00:00:00');
       const e = new Date(t.end_date + 'T00:00:00');
       const c = new Date(s);
-      while (c <= e) { highlightDays.add(_calISODateOnly(c)); c.setDate(c.getDate() + 1); }
+      while (c <= e) { highlightDays.add(dateToLocalISO(c)); c.setDate(c.getDate() + 1); }
     }
   }
 
@@ -920,9 +529,9 @@ function renderCalendar() {
             </svg>
           </div>
           <div>
-            <p class="font-semibold" style="color: var(--accent-primary);">Pick a Day${AppState.calendarPrefillProjectName ? ` for "${_calEscapeHtml(AppState.calendarPrefillProjectName)}"` : ''}</p>
+            <p class="font-semibold" style="color: var(--accent-primary);">Pick a Day${AppState.calendarPrefillProjectName ? ` for "${escapeHtml(AppState.calendarPrefillProjectName)}"` : ''}</p>
             <p class="text-xs text-muted">${AppState.calendarPrefillRecipients && AppState.calendarPrefillRecipients.length > 0
-              ? `Recipients: ${AppState.calendarPrefillRecipients.map(r => _calEscapeHtml(r.chatName)).join(', ')}. Pick the day to send on.${AppState.calendarHighlightProjectId ? ' Highlighted days show when the task is active.' : ''}`
+              ? `Recipients: ${AppState.calendarPrefillRecipients.map(r => escapeHtml(r.chatName)).join(', ')}. Pick the day to send on.${AppState.calendarHighlightProjectId ? ' Highlighted days show when the task is active.' : ''}`
               : `Click a day to select it.${AppState.calendarHighlightProjectId ? ' Highlighted days show when the task is active.' : ''}`
             }</p>
           </div>
@@ -987,7 +596,7 @@ function renderCalendar() {
 
         <div class="cal-grid">
           ${days.map(d => {
-            const dateISO = _calISODateOnly(d);
+            const dateISO = dateToLocalISO(d);
             const isOutside = d.getMonth() !== month.getMonth();
             const isToday = _calSameDay(d, now);
             const isSelected = selectedSet.has(dateISO);
@@ -1003,7 +612,7 @@ function renderCalendar() {
                 ${dayTasks.slice(0, maxDots).map(t => {
                   const doneClass = t.status === 'done' ? ' is-done' : '';
                   return `<div class="cal-task-dot${doneClass}" style="background:${t.color};" 
-                    onmouseenter="_calShowTaskTooltip(event, '${_calEscapeHtml(t.id)}')"
+                    onmouseenter="_calShowTaskTooltip(event, '${escapeHtml(t.id)}')"
                     onmouseleave="_calHideTaskTooltip()"
                     onclick="event.stopPropagation();"></div>`;
                 }).join('')}
@@ -1013,9 +622,11 @@ function renderCalendar() {
 
             const preview = msgs.slice(0, 2).map(m => {
               const status = (m.status === 'sent') ? 'sent' : 'pending';
+              const plat = m._platform || m.platform || 'whatsapp';
+              const icon = plat === 'email' ? '\u2709' : '\ud83d\udcac';
               const txt = (m.message_content || m.message || '').trim();
-              const safeTitle = _calEscapeHtml(txt);
-              return `<span class="cal-chip ${status}" title="${safeTitle}">${_calEscapeHtml(txt || '(no text)')}</span>`;
+              const safeTitle = escapeHtml(txt);
+              return `<span class="cal-chip ${status}" title="${safeTitle}">${icon} ${escapeHtml(txt || '(no text)')}</span>`;
             }).join('');
 
             const more = (count > 2) ? `<span class="cal-chip" style="opacity:0.75;">+${count - 2} more</span>` : '';
@@ -1029,7 +640,7 @@ function renderCalendar() {
               <div
                 class="cal-cell ${isOutside ? 'is-outside' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''} ${isHighlighted ? 'is-task-highlight' : ''}"
                 onclick="calendarDayClicked('${dateISO}')"
-                title="${_calEscapeHtml(hint)}"
+                title="${escapeHtml(hint)}"
                 ${isHighlighted ? `style="--cal-highlight-color: ${highlightColor}55; --cal-highlight-bg: ${highlightColor}14; --cal-highlight-bg-hover: ${highlightColor}22;"` : ''}
               >
                 ${dotsHTML}
@@ -1057,331 +668,6 @@ function renderCalendar() {
   `;
 }
 
-// -----------------------------------------------
-// Projects & Tasks Section (from Timeline data)
-// -----------------------------------------------
-function _calBuildProjectsSection(isSelectionMode) {
-  const workspaces = (typeof AppState !== 'undefined' && AppState.timelineWorkspaces) || [];
-  const projects = (typeof AppState !== 'undefined' && AppState.timelineProjects) || [];
-  const tasks = (typeof AppState !== 'undefined' && AppState.timelineTasks) || [];
-  const members = (typeof AppState !== 'undefined' && AppState.timelineTeamMembers) || [];
-
-  if (workspaces.length === 0 && projects.length === 0) return '';
-
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  const groupedHTML = workspaces.map(ws => {
-    const wsProjects = projects.filter(p => p.workspace_id === ws.id);
-    if (wsProjects.length === 0) return '';
-
-    const projectRows = wsProjects.map(proj => {
-      const subtasks = tasks.filter(t => t.project_id === proj.id);
-      const assigneeIds = [...new Set(subtasks.flatMap(t => t.assignee_id ? t.assignee_id.split(',') : []).filter(Boolean))];
-      const assigneeNames = assigneeIds.map(id => {
-        const m = members.find(mm => mm.id === id);
-        return m ? _calEscapeHtml(m.name) : null;
-      }).filter(Boolean);
-
-      let dateRange = 'No subtasks';
-      if (subtasks.length > 0) {
-        let minS = subtasks[0].start_date, maxE = subtasks[0].end_date;
-        for (const t of subtasks) {
-          if (t.start_date < minS) minS = t.start_date;
-          if (t.end_date > maxE) maxE = t.end_date;
-        }
-        const s = new Date(minS + 'T00:00:00');
-        const e = new Date(maxE + 'T00:00:00');
-        dateRange = `${months[s.getMonth()]} ${s.getDate()} \u2013 ${months[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
-      }
-
-      const doneCount = subtasks.filter(t => t.status === 'done').length;
-      const progress = subtasks.length > 0 ? Math.round((doneCount / subtasks.length) * 100) : 0;
-
-      let statusLabel = 'Empty';
-      let statusColor = '#5a6480';
-      if (subtasks.length > 0) {
-        const ipCount = subtasks.filter(t => t.status === 'in_progress').length;
-        if (doneCount === subtasks.length) { statusLabel = 'Completed'; statusColor = '#10b981'; }
-        else if (ipCount > 0 || doneCount > 0) { statusLabel = 'In Progress'; statusColor = '#3b82f6'; }
-        else { statusLabel = 'Planned'; statusColor = '#f59e0b'; }
-      }
-
-      return `
-        <div class="cal-project-row" style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border-subtle);background:var(--bg-secondary);border-radius:12px;">
-          <div style="width:6px;height:40px;border-radius:3px;background:${proj.color || ws.color};flex-shrink:0;"></div>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <span style="font-weight:600;font-size:14px;color:var(--text-primary);">${_calEscapeHtml(proj.name)}</span>
-              <span style="font-size:11px;padding:2px 8px;border-radius:999px;background:${statusColor}20;color:${statusColor};border:1px solid ${statusColor}40;">${statusLabel}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;margin-top:4px;flex-wrap:wrap;">
-              <span style="font-size:12px;color:var(--text-muted);">${dateRange}</span>
-              ${subtasks.length > 0 ? `<span style="font-size:12px;color:var(--text-muted);">${subtasks.length} subtask${subtasks.length !== 1 ? 's' : ''}</span>` : ''}
-              ${assigneeNames.length > 0 ? `<span style="font-size:12px;color:var(--text-muted);">${assigneeNames.join(', ')}</span>` : ''}
-            </div>
-            ${subtasks.length > 0 ? `
-              <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-                <div style="flex:1;height:4px;border-radius:2px;background:var(--bg-tertiary);overflow:hidden;"><div style="width:${progress}%;height:100%;border-radius:2px;background:${proj.color || ws.color};"></div></div>
-                <span style="font-size:11px;color:var(--text-muted);">${progress}%</span>
-              </div>
-            ` : ''}
-          </div>
-          <button class="btn btn-primary btn-sm" style="flex-shrink:0;display:flex;align-items:center;gap:6px;" onclick="sendMessageForProject('${proj.id}')" title="Send message to people assigned to this task">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            Send Message
-          </button>
-        </div>
-      `;
-    }).join('');
-
-    return `
-      <div style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <div style="width:10px;height:10px;border-radius:3px;background:${ws.color};"></div>
-          <h4 style="font-weight:600;font-size:14px;color:var(--text-primary);margin:0;">${_calEscapeHtml(ws.name)}</h4>
-          <span style="font-size:12px;color:var(--text-muted);">${wsProjects.length} task${wsProjects.length !== 1 ? 's' : ''}</span>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          ${projectRows}
-        </div>
-      </div>
-    `;
-  }).filter(Boolean).join('');
-
-  // Also include orphan projects (not assigned to any workspace)
-  const orphanProjects = projects.filter(p => !workspaces.find(ws => ws.id === p.workspace_id));
-  let orphanHTML = '';
-  if (orphanProjects.length > 0) {
-    const orphanRows = orphanProjects.map(proj => {
-      const subtasks = tasks.filter(t => t.project_id === proj.id);
-      const assigneeIds = [...new Set(subtasks.flatMap(t => t.assignee_id ? t.assignee_id.split(',') : []).filter(Boolean))];
-      const assigneeNames = assigneeIds.map(id => {
-        const m = members.find(mm => mm.id === id);
-        return m ? _calEscapeHtml(m.name) : null;
-      }).filter(Boolean);
-
-      let dateRange = 'No subtasks';
-      if (subtasks.length > 0) {
-        let minS = subtasks[0].start_date, maxE = subtasks[0].end_date;
-        for (const t of subtasks) {
-          if (t.start_date < minS) minS = t.start_date;
-          if (t.end_date > maxE) maxE = t.end_date;
-        }
-        const s = new Date(minS + 'T00:00:00');
-        const e = new Date(maxE + 'T00:00:00');
-        dateRange = `${months[s.getMonth()]} ${s.getDate()} \u2013 ${months[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
-      }
-
-      return `
-        <div class="cal-project-row" style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border-subtle);background:var(--bg-secondary);border-radius:12px;">
-          <div style="width:6px;height:40px;border-radius:3px;background:${proj.color || '#6b7280'};flex-shrink:0;"></div>
-          <div style="flex:1;min-width:0;">
-            <span style="font-weight:600;font-size:14px;color:var(--text-primary);">${_calEscapeHtml(proj.name)}</span>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${dateRange}${assigneeNames.length > 0 ? ' \u00b7 ' + assigneeNames.join(', ') : ''}</div>
-          </div>
-          <button class="btn btn-primary btn-sm" style="flex-shrink:0;display:flex;align-items:center;gap:6px;" onclick="sendMessageForProject('${proj.id}')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            Send Message
-          </button>
-        </div>
-      `;
-    }).join('');
-
-    orphanHTML = `
-      <div style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <div style="width:10px;height:10px;border-radius:3px;background:#6b7280;"></div>
-          <h4 style="font-weight:600;font-size:14px;color:var(--text-primary);margin:0;">Unassigned</h4>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;">${orphanRows}</div>
-      </div>
-    `;
-  }
-
-  if (!groupedHTML && !orphanHTML) return '';
-
-  return `
-    <div class="card" style="margin-top:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div>
-          <h3 class="font-semibold" style="margin:0;">Tasks</h3>
-          <p class="text-sm text-muted" style="margin:2px 0 0;">Tasks from your workspaces. Click \u201cSend Message\u201d to message the assigned people.</p>
-        </div>
-      </div>
-      ${groupedHTML}
-      ${orphanHTML}
-    </div>
-  `;
-}
-
-// -----------------------------------------------
-// Send Message for a Project (Task)
-// Uses Gmail/Email by default, auto-pulls team member emails
-// -----------------------------------------------
-async function sendMessageForProject(projectId) {
-  const projects = AppState.timelineProjects || [];
-  const tasks = AppState.timelineTasks || [];
-  const members = AppState.timelineTeamMembers || [];
-
-  const project = projects.find(p => p.id === projectId);
-  if (!project) {
-    if (typeof showNotification === 'function') showNotification('Project not found', 'error');
-    return;
-  }
-
-  // Collect all assignee IDs from subtasks of this project
-  const subtasks = tasks.filter(t => t.project_id === projectId);
-  const assigneeIds = [...new Set(subtasks.flatMap(t => t.assignee_id ? t.assignee_id.split(',') : []).filter(Boolean))];
-  const assigneeMembers = assigneeIds.map(id => members.find(m => m.id === id)).filter(Boolean);
-
-  // Filter to only members who have an email address
-  const membersWithEmail = assigneeMembers.filter(m => m.email && m.email.trim() !== '');
-
-  // Auto-subscribe team member emails if not already subscribed
-  if (membersWithEmail.length > 0 && typeof AzureVMAPI !== 'undefined') {
-    try {
-      await AzureVMAPI.syncTeamMemberEmails();
-      // Refresh subscribed email users so we have the latest user_ids
-      await AzureVMAPI.fetchSubscribedEmailUsers();
-    } catch (err) {
-      console.warn('Failed to sync team member emails:', err);
-    }
-  }
-
-  // Match team members to subscribed email users by email address
-  const subscribedEmailUsers = AppState.subscribedEmailUsers || [];
-  const matchedRecipients = [];
-  const unmatchedMembers = [];
-
-  for (const member of membersWithEmail) {
-    const memberEmail = member.email.toLowerCase().trim();
-    const emailUser = subscribedEmailUsers.find(u =>
-      (u.email_address || '').toLowerCase().trim() === memberEmail
-    );
-    if (emailUser) {
-      matchedRecipients.push({
-        userId: emailUser.user_id || '',
-        chatId: emailUser.user_id || '',
-        chatName: member.name + ' (' + member.email + ')',
-        platform: 'email'
-      });
-    } else {
-      unmatchedMembers.push(member);
-    }
-  }
-
-  // Also note members without email
-  const membersWithoutEmail = assigneeMembers.filter(m => !m.email || m.email.trim() === '');
-
-  // Set compose channel to email
-  AppState.composeChannel = 'email';
-
-  // Store the prefill recipients in AppState for the scheduling page to pick up
-  AppState.calendarPrefillRecipients = matchedRecipients;
-  AppState.calendarPrefillProjectName = project.name;
-
-  // Build notification message
-  if (matchedRecipients.length > 0) {
-    const names = matchedRecipients.map(r => r.chatName);
-    let msg = `${matchedRecipients.length} email recipient${matchedRecipients.length !== 1 ? 's' : ''} matched: ${names.join(', ')}`;
-    if (membersWithoutEmail.length > 0) {
-      msg += `. ${membersWithoutEmail.length} member(s) have no email: ${membersWithoutEmail.map(m => m.name).join(', ')}`;
-    }
-    if (typeof showNotification === 'function') showNotification(msg, 'success');
-  } else if (membersWithEmail.length > 0) {
-    if (typeof showNotification === 'function') {
-      showNotification(
-        `Could not match emails for: ${membersWithEmail.map(m => m.name).join(', ')}. Recipients can be selected manually.`,
-        'info'
-      );
-    }
-  } else if (assigneeMembers.length > 0) {
-    if (typeof showNotification === 'function') {
-      showNotification(
-        `No team members with email addresses found for: ${assigneeMembers.map(m => m.name).join(', ')}. Add emails in the People tab.`,
-        'info'
-      );
-    }
-  } else {
-    if (typeof showNotification === 'function') {
-      showNotification('No one is assigned to this task yet.', 'info');
-    }
-  }
-
-  // Store project ID for highlighting task-span days on the calendar
-  AppState.calendarHighlightProjectId = projectId;
-
-  // Enter day selection mode on the calendar
-  AppState.daySelectionMode = true;
-  AppState.selectedScheduleDays = [];
-
-  // Navigate to calendar if we're not already there
-  if (AppState.currentView !== 'calendar') {
-    navigateTo('calendar');
-  } else {
-    renderCalendar();
-  }
-}
-
-// -----------------------------------------------
-// Task Tooltip (hover on calendar task bars)
-// -----------------------------------------------
-function _calShowTaskTooltip(event, taskId) {
-  _calHideTaskTooltip();
-  const tasks = AppState.timelineTasks || [];
-  const projects = AppState.timelineProjects || [];
-  const members = AppState.timelineTeamMembers || [];
-
-  const task = tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  const project = projects.find(p => p.id === task.project_id);
-  const assigneeIds = task.assignee_id ? task.assignee_id.split(',').filter(Boolean) : [];
-  const assigneeNames = assigneeIds.map(id => {
-    const m = members.find(mm => mm.id === id);
-    return m ? _calEscapeHtml(m.name) : null;
-  }).filter(Boolean);
-
-  const statusMap = { done: 'Completed', in_progress: 'In Progress', planned: 'Planned' };
-  const statusLabel = statusMap[task.status] || task.status || 'Unknown';
-
-  const tooltip = document.createElement('div');
-  tooltip.id = 'cal-task-tooltip';
-  tooltip.className = 'cal-task-tooltip';
-  tooltip.innerHTML = `
-    <div class="cal-task-tooltip-title">${_calEscapeHtml(task.title)}</div>
-    ${project ? `<div class="cal-task-tooltip-project" style="color:${project.color};">${_calEscapeHtml(project.name)}</div>` : ''}
-    <div class="cal-task-tooltip-meta">
-      <span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        ${_calEscapeHtml(task.start_date)} → ${_calEscapeHtml(task.end_date)}
-      </span>
-      <span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        ${task.hours_per_week || 0}h/week · ${statusLabel}
-      </span>
-      ${assigneeNames.length > 0 ? `<span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/></svg>
-        ${assigneeNames.join(', ')}
-      </span>` : ''}
-      ${task.description ? `<span style="margin-top:2px;opacity:0.8;">${_calEscapeHtml(task.description.length > 120 ? task.description.substring(0,120) + '...' : task.description)}</span>` : ''}
-    </div>
-  `;
-
-  document.body.appendChild(tooltip);
-
-  // Position near cursor
-  const rect = tooltip.getBoundingClientRect();
-  const x = Math.min(event.clientX + 12, window.innerWidth - rect.width - 16);
-  const y = Math.min(event.clientY - 8, window.innerHeight - rect.height - 16);
-  tooltip.style.left = Math.max(8, x) + 'px';
-  tooltip.style.top = Math.max(8, y) + 'px';
-}
-
-function _calHideTaskTooltip() {
-  const existing = document.getElementById('cal-task-tooltip');
-  if (existing) existing.remove();
-}
 
 // Export
 if (typeof window !== 'undefined') {

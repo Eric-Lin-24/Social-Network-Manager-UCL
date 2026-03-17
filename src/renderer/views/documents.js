@@ -124,7 +124,7 @@ function resetToRoot() {
   renderDocuments();
 }
 
-function updateDocumentSearch(query, cursorPos) {
+const updateDocumentSearch = debounce((query, cursorPos) => {
   AppState.documentSearchQuery = query || '';
   renderDocuments();
 
@@ -136,7 +136,7 @@ function updateDocumentSearch(query, cursorPos) {
       searchInput.setSelectionRange(cursorPos, cursorPos);
     }
   }
-}
+}, 150);
 
 function renderDocuments() {
   const content = document.getElementById('content');
@@ -169,7 +169,7 @@ function renderDocuments() {
   const tabGoogleClass = !isOneDrive ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
 
   const breadcrumb = (nav.stack || []).map((x, idx) => {
-    const safeName = (x.name || 'Folder').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeName = escapeHtml(x.name || 'Folder');
     return `<span class="text-muted">/</span><span class="text-sm">${safeName}</span>`;
   }).join(' ');
 
@@ -302,7 +302,7 @@ function renderDocuments() {
           </div>
         ` : documents.map(doc => {
           const folder = isFolderDoc(doc);
-          const title = (doc.title || 'Untitled').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const title = escapeHtml(doc.title || 'Untitled');
           const meta = folder ? 'Folder' : (doc.mimeType || 'File');
           const isSelected = !folder && isSelectionMode && isFileSelectedForScheduler(doc.id);
           const safeDocJson = JSON.stringify(doc).replace(/'/g, "\\'").replace(/"/g, '&quot;');
