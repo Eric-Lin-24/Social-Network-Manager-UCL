@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
 const { PublicClientApplication, CachePersistence } = require('@azure/msal-node');
 const SimpleStore = require('./simpleStore');
@@ -29,6 +29,64 @@ const store = new SimpleStore();
 let authServer = null;
 let googleAuthServer = null;
 let googleTokens = null;
+let mainWindow = null;
+let appTray = null;
+
+const trayIconPath = path.join(__dirname, 'assets', 'Adobe Express - file.png');
+
+function createTrayIcon() {
+  if (appTray) return appTray;
+
+  let trayImage = nativeImage.createFromPath(trayIconPath);
+  // Crop out the white padding — the logo occupies roughly the centre 65% of the image
+  if (!trayImage.isEmpty()) {
+    const size = trayImage.getSize();
+    const pad = Math.round(size.width * 0.16);
+    trayImage = trayImage.crop({
+      x: pad, y: pad,
+      width: size.width - pad * 2,
+      height: size.height - pad * 2
+    });
+  }
+
+  appTray = new Tray(trayImage);
+  appTray.setToolTip('Community Curator');
+  appTray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: 'Show App',
+      click: () => {
+        if (!mainWindow) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    },
+    {
+      label: 'Hide App',
+      click: () => {
+        if (mainWindow) mainWindow.hide();
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => app.quit()
+    }
+  ]));
+
+  appTray.on('click', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
+  return appTray;
+}
 
 
 // MSAL Configuration with persistent cache
@@ -806,9 +864,16 @@ function createGoogleAuthServer() {
 }
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  let windowIcon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Adobe Express - file.png'));
+  if (!windowIcon.isEmpty()) {
+    const size = windowIcon.getSize();
+    const pad = Math.round(size.width * 0.16);
+    windowIcon = windowIcon.crop({ x: pad, y: pad, width: size.width - pad * 2, height: size.height - pad * 2 });
+  }
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    icon: windowIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -820,6 +885,10 @@ function createWindow() {
 
   // Open DevTools in development
   mainWindow.webContents.openDevTools();
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 
   return mainWindow;
 }
@@ -1433,8 +1502,10 @@ ipcMain.handle('google-logout', async () => {
 });
 
 app.whenReady().then(() => {
+  app.setAppUserModelId('Community Curator');
   createWindow();
-    loadStoredTokens();
+  createTrayIcon();
+  loadStoredTokens();
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

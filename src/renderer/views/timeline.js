@@ -441,7 +441,7 @@ function _ganttBuildChart() {
     }
   }
 
-  const gridCols = `${sidebarWidth}px repeat(${numCols}, ${colWidth}px)`;
+  const gridCols = `${sidebarWidth}px repeat(${numCols}, minmax(${colWidth}px, 1fr))`;
 
   return `
     <div class="card gantt-container">
