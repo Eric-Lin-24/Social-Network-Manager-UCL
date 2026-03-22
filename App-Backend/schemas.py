@@ -24,8 +24,6 @@ class Token(BaseModel):
     token_type: str
 
 
-# --- Workspace Schemas (User-facing: "Project") ---
-
 class WorkspaceCreate(BaseModel):
     name: str
     description: Optional[str] = ""
@@ -48,8 +46,6 @@ class WorkspaceResponse(BaseModel):
         from_attributes = True
 
 
-# --- Project Schemas (User-facing: "Task") ---
-
 class ProjectCreate(BaseModel):
     name: str
     color: Optional[str] = "#14b8a6"
@@ -70,9 +66,6 @@ class ProjectResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# --- TeamMember Schemas ---
 
 class TeamMemberCreate(BaseModel):
     name: str
@@ -104,8 +97,6 @@ class TeamMemberResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
-# --- TimelineTask Schemas ---
 
 class TimelineTaskCreate(BaseModel):
     title: str
@@ -142,3 +133,28 @@ class TimelineTaskResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TeamCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    color: Optional[str] = "#14b8a6"
+    member_ids: Optional[str] = ""  # Comma-separated member IDs
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+    member_ids: Optional[str] = None
+
+class TeamResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    color: str
+    member_ids: str
+    owner_uuid: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True 

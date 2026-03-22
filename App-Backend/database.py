@@ -53,3 +53,15 @@ def get_db():
 
 def get_user_by_username(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
+    _migrate_db()
+
+def get_db():
+    """Dependency to get database session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def get_user_by_username(db: Session, username: str):
+    return db.query(User).filter(User.username == username).first()
