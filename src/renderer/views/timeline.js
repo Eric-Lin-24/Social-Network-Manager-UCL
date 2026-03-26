@@ -197,7 +197,7 @@ function _tlBuildToolbar() {
           <div class="tl-filter-wrap">
             <svg class="tl-filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12h6M9 16h4"/></svg>
             <select class="tl-filter-v2" onchange="timelineSetFilterProject(this.value)">
-              <option value="">All Projects</option>
+              <option value="">All Sprints</option>
               ${projectOpts}
             </select>
           </div>
@@ -218,7 +218,7 @@ function _tlBuildToolbar() {
           </div>
           <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateProjectModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            Project
+            Sprint
           </button>
           <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
@@ -290,7 +290,7 @@ function _ganttBuildChart() {
         <div class="gantt-empty-actions">
           <button class="tl-action-btn tl-action-btn--primary" onclick="openCreateProjectModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Create Project
+            Create Sprint
           </button>
           <button class="tl-action-btn tl-action-btn--secondary" onclick="openCreateMemberModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-4-3.5-7-8-7s-8 3-8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>

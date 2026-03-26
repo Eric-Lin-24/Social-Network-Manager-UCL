@@ -10,10 +10,15 @@ import pytest
 from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 # Add the Telegram-Engine directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+# Provide safe defaults so import-time checks do not break tests.
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
+os.environ.setdefault("API_BASE_URL", "http://localhost:8000")
 
 from models import Base
 from database import get_db
@@ -24,7 +29,9 @@ TEST_DATABASE_URL = "sqlite:///:memory:"
 @pytest.fixture(scope="function")
 def db_engine():
     engine = create_engine(
-        TEST_DATABASE_URL, connect_args={"check_same_thread": False}
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=engine)
     yield engine

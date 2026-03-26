@@ -115,7 +115,7 @@ function openCreateProjectModal() {
 
   const body = `
     <div class="form-group">
-      <label class="form-label">Project Name</label>
+      <label class="form-label">Sprint Name</label>
       <input type="text" id="tl-proj-name" class="form-input" placeholder="e.g. Algebra Fundamentals">
     </div>
     <div class="form-group">
@@ -126,10 +126,10 @@ function openCreateProjectModal() {
 
   const footer = `
     <button class="btn btn-secondary" onclick="closeTimelineModal()">Cancel</button>
-    <button class="btn btn-primary" onclick="submitCreateProject()">Create Project</button>
+    <button class="btn btn-primary" onclick="submitCreateProject()">Create Sprint</button>
   `;
 
-  _tlShowModal(_tlModalShell('New Project', body, footer));
+  _tlShowModal(_tlModalShell('New Sprint', body, footer));
 }
 
 async function submitCreateProject() {
@@ -138,7 +138,7 @@ async function submitCreateProject() {
   const color = colorInput ? colorInput.value : '#14b8a6';
 
   if (!name) {
-    showNotification('Please enter a project name', 'warning');
+    showNotification('Please enter a sprint name', 'warning');
     return;
   }
 
@@ -152,7 +152,7 @@ async function submitCreateProject() {
     });
     if (!resp.ok) throw new Error('Failed to create project');
     closeTimelineModal();
-    showNotification('Project created', 'success');
+    showNotification('Sprint created', 'success');
     await timelineRefreshData();
     renderTimeline();
   } catch (e) {
