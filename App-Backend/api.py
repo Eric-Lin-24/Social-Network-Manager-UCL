@@ -42,6 +42,8 @@ app = FastAPI(
 
 
 # CORS middleware
+# Note: allow_origins=["*"] is intentional — the Electron renderer loads from
+# a file:// origin which browsers report as "null", so a whitelist cannot be used.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -257,8 +259,9 @@ def create_team_member(member: TeamMemberCreate, user_uuid: str, db: Session = D
     db.commit()
     db.refresh(db_member)
 
-    # Auto-subscribe to mailing list if email provided
-    _sync_email_to_mailing_list(db_member.email, db_member.name)
+    # Subscribe to mailing list only if explicitly opted in
+    if member.subscribe_to_mailing_list and db_member.email:
+        _sync_email_to_mailing_list(db_member.email, db_member.name)
 
     return db_member
 
@@ -286,10 +289,6 @@ def update_team_member(member_id: str, member: TeamMemberUpdate, user_uuid: str,
         setattr(db_m, field, value)
     db.commit()
     db.refresh(db_m)
-
-    # If email was updated, subscribe the new address to the mailing list
-    if "email" in update_data and db_m.email:
-        _sync_email_to_mailing_list(db_m.email, db_m.name)
 
     return db_m
 
@@ -468,6 +467,72 @@ def get_project_assignee_emails(project_id: str, user_uuid: str, db: Session = D
             })
 
     return results
+
+
+# ============================================
+# USER DATA ENDPOINTS (GDPR)
+# ============================================
+
+@app.delete("/user/{user_uuid}", status_code=status.HTTP_200_OK)
+def delete_user(user_uuid: str, db: Session = Depends(get_db)):
+    """Delete a user account and all associated data (GDPR Article 17 - Right to Erasure)."""
+    from models import User as UserModel
+    user = db.query(UserModel).filter(UserModel.uuid == user_uuid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.query(TimelineTask).filter(TimelineTask.owner_uuid == user_uuid).delete()
+    db.query(TeamMember).filter(TeamMember.owner_uuid == user_uuid).delete()
+    db.query(Team).filter(Team.owner_uuid == user_uuid).delete()
+    db.query(Project).filter(Project.owner_uuid == user_uuid).delete()
+    db.query(Workspace).filter(Workspace.owner_uuid == user_uuid).delete()
+    db.delete(user)
+    db.commit()
+    return {"deleted": True}
+
+
+@app.get("/user/{user_uuid}/export")
+def export_user_data(user_uuid: str, db: Session = Depends(get_db)):
+    """Export all data held for a user as JSON (GDPR Article 20 - Data Portability)."""
+    from models import User as UserModel
+    user = db.query(UserModel).filter(UserModel.uuid == user_uuid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    workspaces = db.query(Workspace).filter(Workspace.owner_uuid == user_uuid).all()
+    projects = db.query(Project).filter(Project.owner_uuid == user_uuid).all()
+    members = db.query(TeamMember).filter(TeamMember.owner_uuid == user_uuid).all()
+    tasks = db.query(TimelineTask).filter(TimelineTask.owner_uuid == user_uuid).all()
+    teams = db.query(Team).filter(Team.owner_uuid == user_uuid).all()
+
+    return {
+        "user": {
+            "username": user.username,
+            "uuid": user.uuid,
+            "created_at": user.created_at.isoformat(),
+        },
+        "workspaces": [
+            {"id": w.id, "name": w.name, "description": w.description, "created_at": w.created_at.isoformat()}
+            for w in workspaces
+        ],
+        "projects": [
+            {"id": p.id, "name": p.name, "workspace_id": p.workspace_id, "created_at": p.created_at.isoformat()}
+            for p in projects
+        ],
+        "team_members": [
+            {"id": m.id, "name": m.name, "role": m.role, "email": m.email, "phone": m.phone, "created_at": m.created_at.isoformat()}
+            for m in members
+        ],
+        "timeline_tasks": [
+            {"id": t.id, "title": t.title, "description": t.description, "start_date": t.start_date,
+             "end_date": t.end_date, "status": t.status, "created_at": t.created_at.isoformat()}
+            for t in tasks
+        ],
+        "teams": [
+            {"id": t.id, "name": t.name, "description": t.description, "created_at": t.created_at.isoformat()}
+            for t in teams
+        ],
+    }
 
 
 def create_app():

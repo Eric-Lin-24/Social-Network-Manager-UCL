@@ -184,6 +184,12 @@ function openCreateMemberModal() {
       <label class="form-label">Weekly Hours</label>
       <input type="number" id="tl-member-capacity" class="form-input" value="25" min="1" max="80">
     </div>
+    <div class="form-group" style="display:flex;align-items:flex-start;gap:8px;margin-top:4px;">
+      <input type="checkbox" id="tl-member-subscribe" style="margin-top:3px;flex-shrink:0;">
+      <label for="tl-member-subscribe" style="font-size:13px;color:var(--text-secondary,#6b7280);cursor:pointer;">
+        Subscribe this member's email to the project mailing list
+      </label>
+    </div>
   `;
 
   const footer = `
@@ -200,6 +206,7 @@ async function submitCreateMember() {
   const email = document.getElementById('tl-member-email')?.value?.trim() || '';
   const phone = document.getElementById('tl-member-phone')?.value?.trim() || '';
   const capacity = parseInt(document.getElementById('tl-member-capacity')?.value) || 40;
+  const subscribe_to_mailing_list = document.getElementById('tl-member-subscribe')?.checked || false;
 
   if (!name) {
     showNotification('Please enter a name', 'warning');
@@ -210,7 +217,7 @@ async function submitCreateMember() {
     const resp = await fetch(`${AppState.authenticationUrl}/team-members?user_uuid=${AppState.userId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, role, email, phone, weekly_capacity_hours: capacity })
+      body: JSON.stringify({ name, role, email, phone, weekly_capacity_hours: capacity, subscribe_to_mailing_list })
     });
     if (!resp.ok) throw new Error('Failed to create worker');
     closeTimelineModal();

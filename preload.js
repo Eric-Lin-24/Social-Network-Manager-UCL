@@ -2,12 +2,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // =========================
-  // App User Session (NEW)
-  // =========================
-  setActiveUser: (userId) => ipcRenderer.invoke('set-active-user', { userId }),
-  clearActiveUser: () => ipcRenderer.invoke('clear-active-user'),
-
-  // =========================
   // Microsoft OAuth
   // =========================
   login: () => ipcRenderer.invoke('msal-login'),
@@ -29,10 +23,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('download-google-drive-file', { fileId, fileName, mimeType }),
   googleLogout: () => ipcRenderer.invoke('google-logout'),
 
-  // NEW: user-scoped google token persistence in main store
-  loadGoogleForUser: (userId) => ipcRenderer.invoke('load-google-for-user', { userId }),
-  clearGoogleForUser: (userId) => ipcRenderer.invoke('clear-google-for-user', { userId }),
-
   onGoogleAuthSuccess: (callback) => ipcRenderer.on('google-auth-success', (event, data) => callback(data)),
-  onGoogleAuthError: (callback) => ipcRenderer.on('google-auth-error', (event, error) => callback(error))
+  onGoogleAuthError: (callback) => ipcRenderer.on('google-auth-error', (event, error) => callback(error)),
+
+  // =========================
+  // Backend URLs (from .env)
+  // =========================
+  getBackendUrls: () => ipcRenderer.invoke('get-backend-urls'),
 });

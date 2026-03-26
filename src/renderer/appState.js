@@ -45,11 +45,6 @@ const AppState = {
   scheduleMessagePrefill: null, // { target_user_id: string, message_content: string }
   messagePrefillRecipients: null, // Array of { userId, chatId, chatName, platform } – set by People page
 
-  // Forms
-  microsoftForms: [],
-  formSubmissions: [],
-  selectedForm: null,
-
   // Microsoft Authentication
   isAuthenticated: false,
   accessToken: null,

@@ -95,6 +95,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize sidebar toggle for the initial layout
   initSidebarToggle();
 
+  // Load backend URLs from .env via IPC (falls back to hardcoded defaults if unavailable)
+  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.getBackendUrls) {
+    try {
+      const urls = await window.electronAPI.getBackendUrls();
+      AppState.azureVmUrl = urls.azureVmUrl;
+      AppState.authenticationUrl = urls.authenticationUrl;
+      console.log('Backend URLs loaded from environment');
+    } catch (e) {
+      console.warn('Could not load backend URLs from environment, using defaults');
+    }
+  }
+
   // Always show login screen on startup - no persistent sessions
   console.log('⚠️ Please sign in to continue');
   renderLoginScreen();
@@ -501,6 +513,13 @@ function renderLoginScreen() {
               />
             </div>
 
+            <div style="display:flex;align-items:flex-start;gap:8px;margin:12px 0 4px;">
+              <input type="checkbox" id="signup-consent" style="margin-top:3px;flex-shrink:0;">
+              <label for="signup-consent" style="font-size:12px;color:#6b7280;cursor:pointer;line-height:1.4;">
+                I understand that this app stores my username and workspace data on a remote server to provide the service. I can request deletion of my data by contacting the administrator.
+              </label>
+            </div>
+
             <div id="signup-error" class="auth-error hidden"></div>
 
             <button type="submit" class="auth-button" id="signup-button">
@@ -663,6 +682,12 @@ async function handleSignUp(event) {
 
   if (password.length < 6) {
     errorDiv.textContent = 'Password must be at least 6 characters';
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  if (!document.getElementById('signup-consent')?.checked) {
+    errorDiv.textContent = 'Please read and accept the data storage notice to create an account';
     errorDiv.classList.remove('hidden');
     return;
   }

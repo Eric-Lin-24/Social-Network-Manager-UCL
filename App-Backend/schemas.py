@@ -74,6 +74,7 @@ class TeamMemberCreate(BaseModel):
     weekly_capacity_hours: Optional[int] = 40
     email: Optional[str] = ""
     phone: Optional[str] = ""
+    subscribe_to_mailing_list: Optional[bool] = False
 
 class TeamMemberUpdate(BaseModel):
     name: Optional[str] = None

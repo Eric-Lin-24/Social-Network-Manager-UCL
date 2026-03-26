@@ -253,23 +253,23 @@ async function refreshCurrentView() {
         showLoadingOverlay('Syncing chats, emails and messages…');
 
         if (window.AzureVMAPI) {
-          await maybeAwait(AzureVMAPI.refreshSubscribedChats);
+          await maybeAwait(() => AzureVMAPI.refreshSubscribedChats());
 
           if (typeof AzureVMAPI.fetchSubscribedEmailUsers === 'function') {
-            await maybeAwait(AzureVMAPI.fetchSubscribedEmailUsers);
+            await maybeAwait(() => AzureVMAPI.fetchSubscribedEmailUsers());
           }
 
           // Auto-subscribe team members with emails
           if (typeof AzureVMAPI.syncTeamMemberEmails === 'function') {
-            await maybeAwait(AzureVMAPI.syncTeamMemberEmails);
+            await maybeAwait(() => AzureVMAPI.syncTeamMemberEmails());
           }
 
           if (typeof AzureVMAPI.syncMessagesFromServer === 'function') {
-            await maybeAwait(AzureVMAPI.syncMessagesFromServer);
+            await maybeAwait(() => AzureVMAPI.syncMessagesFromServer());
           }
 
           if (typeof AzureVMAPI.syncEmailsFromServer === 'function') {
-            await maybeAwait(AzureVMAPI.syncEmailsFromServer);
+            await maybeAwait(() => AzureVMAPI.syncEmailsFromServer());
           }
         }
 
