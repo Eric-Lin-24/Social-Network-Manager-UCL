@@ -5,8 +5,21 @@
 // ============================================
 
 // Attribute escaping: uses shared escapeAttr from utils.js
+function _saveCurrentFormState() {
+  AppState.schedulerFormState = {
+    messageContent: document.getElementById('message-content')?.value || '',
+    time: document.getElementById('message-time')?.value || '',
+    emailSubject: document.getElementById('email-subject')?.value || '',
+    channel: _getComposeChannel(),
+    recipients: [...selectedRecipients],
+    localFiles: [...selectedLocalFiles],
+    selectedDays: [...(AppState.selectedScheduleDays || [])]
+  };
+}
+
 function openCalendarDayPicker() {
   // enter selection mode + keep whatever is already selected
+  _saveCurrentFormState();
   AppState.daySelectionMode = true;
   if (!Array.isArray(AppState.selectedScheduleDays)) AppState.selectedScheduleDays = [];
   navigateTo('calendar');
@@ -31,6 +44,7 @@ function _getSelectedDays() {
 }
 
 function removeSelectedDay(dateISO) {
+  _saveCurrentFormState();
   AppState.selectedScheduleDays = (AppState.selectedScheduleDays || []).filter(d => d !== dateISO);
   if (AppState.selectedScheduleDays.length === 0) {
     // keep at least one day
@@ -483,6 +497,7 @@ function setQuickSchedule(option) {
   if (option === 'now' || option === '1h') {
     AppState.selectedScheduleDays = [dateToLocalISO(now)];
   }
+  _saveCurrentFormState();
   showNotification('Schedule time updated', 'info');
   renderScheduleMessagePage();
 }

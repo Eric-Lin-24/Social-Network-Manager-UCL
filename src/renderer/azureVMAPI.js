@@ -111,19 +111,16 @@ const AzureVMAPI = {
       }
 
       const data = await response.json();
-      console.log('Raw API response:', data);
 
       let rawChats = [];
       if (Array.isArray(data)) rawChats = data;
       else if (data && Array.isArray(data.chats)) rawChats = data.chats;
       else if (data && Array.isArray(data.users)) rawChats = data.users;
       else {
-        console.error('Unexpected response format:', data);
         throw new Error('Invalid response format from Azure VM');
       }
 
       const formattedChats = rawChats.map(chat => {
-        console.log('Raw chat from server:', chat);
         return {
           id: chat.chat_id || chat.id,
           chat_id: chat.chat_id,
@@ -136,7 +133,6 @@ const AzureVMAPI = {
         };
       });
 
-      console.log('Formatted chats with user_id:', formattedChats);
       AppState.subscribedChats = formattedChats;
 
       if (AppState.lastSync) {
@@ -175,8 +171,6 @@ const AzureVMAPI = {
       throw new Error('User not authenticated. Please sign in.');
     }
 
-    console.log('=== PREPARING TO SEND TO AZURE VM ===');
-
     let targetUserIdStr = '';
     if (Array.isArray(targetUserId)) targetUserIdStr = targetUserId.join(',');
     else if (typeof targetUserId === 'string') targetUserIdStr = targetUserId;
@@ -187,12 +181,6 @@ const AzureVMAPI = {
     else if (typeof scheduledTimestamp === 'string') scheduledTsStr = scheduledTimestamp;
     else if (scheduledTimestamp != null) scheduledTsStr = String(scheduledTimestamp);
 
-    console.log('User UUID:', AppState.userId);
-    console.log('Username:', AppState.username);
-    console.log('Target user(s):', targetUserIdStr);
-    console.log('Scheduled timestamp:', scheduledTsStr);
-    console.log('Files received in scheduleMessage:', files ? files.length || 0 : 0);
-
     const formData = new FormData();
     formData.append('target_user_id', targetUserIdStr);
     formData.append('message', message);
@@ -201,21 +189,10 @@ const AzureVMAPI = {
     formData.append('username', AppState.username || '');
 
     if (files && files.length > 0) {
-      console.log('Adding files to FormData:');
-      Array.from(files).forEach((file, index) => {
-        try {
-          console.log(`  [${index}] ${file.name} - ${file.size} bytes - ${file.type}`);
-        } catch (e) {
-          console.log(`  [${index}] file added (no metadata available)`);
-        }
-        formData.append('files', file);
-      });
-    } else {
-      console.log('No files to add to FormData');
+      Array.from(files).forEach(file => formData.append('files', file));
     }
 
     const endpoint = `${this._baseUrl()}/schedule-message`;
-    console.log('Sending POST to:', endpoint);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -237,8 +214,6 @@ const AzureVMAPI = {
     }
 
     const result = await response.json();
-    console.log('=== MESSAGE SCHEDULED SUCCESSFULLY ===');
-    console.log('Response from server:', result);
     return result;
   },
 
@@ -283,7 +258,6 @@ const AzureVMAPI = {
       }
 
       const data = await res.json();
-      console.log('deleteMessage response:', data);
       return data === true || data === 'true' || (data && data.deleted === true);
     } catch (err) {
       console.error('deleteMessage error:', err);
@@ -325,7 +299,6 @@ const AzureVMAPI = {
       }
 
       const data = await res.json();
-      console.log('Subscribed user response:', data);
       return data;
     } catch (err) {
       console.error('subscribeUser error:', err);
@@ -362,7 +335,6 @@ const AzureVMAPI = {
       }
 
       const data = await res.json();
-      console.log('Pending messages for user:', AppState.userId, data);
       return data;
     } catch (err) {
       console.error('getPendingMessages error:', err);
@@ -372,10 +344,7 @@ const AzureVMAPI = {
 
   async syncMessagesFromServer() {
     try {
-      if (!AppState.userId) {
-        console.log('⚠️ No user ID - skipping message sync');
-        return;
-      }
+      if (!AppState.userId) return;
 
       const serverMessages = await this.getPendingMessages();
 
@@ -383,8 +352,6 @@ const AzureVMAPI = {
         console.warn('Server returned non-array for pending messages:', serverMessages);
         return;
       }
-
-      console.log(`📊 Fetched ${serverMessages.length} message(s) from server for user ${AppState.userId}`);
 
       AppState.scheduledMessages = AppState.scheduledMessages || [];
 
@@ -414,7 +381,6 @@ const AzureVMAPI = {
         if (serverMsg) {
           // Update status
           if (serverMsg.is_sent === true && localMsg.status !== 'sent') {
-            console.log(`✓ Message ${serverMsg.id} marked as SENT (was pending local: ${localMsg.id})`);
             localMsg.status = 'sent';
             localMsg.sent_at = serverMsg.sent_at || new Date().toISOString();
           }
@@ -438,7 +404,6 @@ const AzureVMAPI = {
         } else {
           // If it had a server_id and that ID is no longer on server → deleted
           if (localMsg.server_id && !serverIdSet.has(String(localMsg.server_id))) {
-            console.log(`🗑️ Message ${localMsg.id} no longer on server, removing locally`);
             messagesToRemove.push(index);
           }
         }
@@ -462,8 +427,6 @@ const AzureVMAPI = {
         const existsByKey = !existsById && AppState.scheduledMessages.some(m => this._contentKey(m) === serverKey);
 
         if (!existsById && !existsByKey) {
-          console.log(`➕ Adding new message from server: ${serverMsg.id}`);
-
           // Name lookup (best effort)
           let displayName = null;
           const targetIdRaw = Array.isArray(serverMsg.target_user_id) ? serverMsg.target_user_id[0] : serverMsg.target_user_id;
@@ -534,14 +497,10 @@ const AzureVMAPI = {
 
       const totalChanges = messagesToRemove.length + addedCount + deduped;
 
-      if (deduped > 0) console.log(`🧹 Removed ${deduped} duplicate message(s) (normalized key + ID-first)`);
       if (totalChanges > 0) {
-        console.log(`✓ Sync complete: ${messagesToRemove.length} removed, ${addedCount} added, ${deduped} deduped`);
         if (AppState.currentView === 'scheduling' && typeof renderScheduling === 'function') {
           renderScheduling();
         }
-      } else {
-        console.log('No messages updated from server sync');
       }
 
       return serverMessages;
@@ -552,8 +511,6 @@ const AzureVMAPI = {
 
   startMessagePolling(intervalMs = 30000) {
     this.stopMessagePolling();
-
-    console.log(`Starting message polling (every ${intervalMs / 1000}s)`);
 
     this.syncMessagesFromServer();
     this.syncEmailsFromServer();
@@ -567,7 +524,6 @@ const AzureVMAPI = {
   },
 
   stopMessagePolling() {
-    console.log('Stopping message polling');
     clearInterval(this._pollingInterval);
     this._pollingInterval = null;
   },
@@ -594,13 +550,11 @@ const AzureVMAPI = {
       }
 
       const data = await response.json();
-      console.log('Raw email users response:', data);
 
       let rawUsers = [];
       if (Array.isArray(data)) rawUsers = data;
       else if (data && Array.isArray(data.users)) rawUsers = data.users;
       else {
-        console.error('Unexpected email users response format:', data);
         throw new Error('Invalid response format from server');
       }
 
@@ -613,7 +567,6 @@ const AzureVMAPI = {
         platform: 'email'
       }));
 
-      console.log('Formatted email users:', formattedUsers);
       AppState.subscribedEmailUsers = formattedUsers;
       return formattedUsers;
     } catch (error) {
@@ -668,7 +621,6 @@ const AzureVMAPI = {
       }
 
       const data = await res.json();
-      console.log('Subscribed email user response:', data);
       return data;
     } catch (err) {
       console.error('subscribeEmailUser error:', err);
@@ -685,8 +637,6 @@ const AzureVMAPI = {
       throw new Error('User not authenticated. Please sign in.');
     }
 
-    console.log('=== PREPARING TO SEND EMAIL TO SERVER ===');
-
     let targetUserIdStr = '';
     if (Array.isArray(targetUserId)) targetUserIdStr = targetUserId.join(',');
     else if (typeof targetUserId === 'string') targetUserIdStr = targetUserId;
@@ -697,11 +647,6 @@ const AzureVMAPI = {
     else if (typeof scheduledTimestamp === 'string') scheduledTsStr = scheduledTimestamp;
     else if (scheduledTimestamp != null) scheduledTsStr = String(scheduledTimestamp);
 
-    console.log('Target email user(s):', targetUserIdStr);
-    console.log('Subject:', subject);
-    console.log('Scheduled timestamp:', scheduledTsStr);
-    console.log('Files:', files ? files.length || 0 : 0);
-
     const formData = new FormData();
     formData.append('target_user_id', targetUserIdStr);
     formData.append('subject', subject);
@@ -710,18 +655,10 @@ const AzureVMAPI = {
     formData.append('from_sender', AppState.userId);
 
     if (files && files.length > 0) {
-      Array.from(files).forEach((file, index) => {
-        try {
-          console.log(`  [${index}] ${file.name} - ${file.size} bytes - ${file.type}`);
-        } catch (e) {
-          console.log(`  [${index}] file added (no metadata available)`);
-        }
-        formData.append('files', file);
-      });
+      Array.from(files).forEach(file => formData.append('files', file));
     }
 
     const endpoint = `${this._baseUrl()}/schedule-email`;
-    console.log('Sending POST to:', endpoint);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -743,8 +680,6 @@ const AzureVMAPI = {
     }
 
     const result = await response.json();
-    console.log('=== EMAIL SCHEDULED SUCCESSFULLY ===');
-    console.log('Response from server:', result);
     return result;
   },
 
@@ -777,7 +712,6 @@ const AzureVMAPI = {
       }
 
       const data = await res.json();
-      console.log('Pending emails for user:', AppState.userId, data);
       return data;
     } catch (err) {
       console.error('getPendingEmails error:', err);
@@ -826,7 +760,6 @@ const AzureVMAPI = {
       }
 
       const data = await res.json();
-      console.log('deleteEmail response:', data);
       return data === true || data === 'true' || (data && data.deleted === true);
     } catch (err) {
       console.error('deleteEmail error:', err);
@@ -836,10 +769,7 @@ const AzureVMAPI = {
 
   async syncEmailsFromServer() {
     try {
-      if (!AppState.userId) {
-        console.log('No user ID - skipping email sync');
-        return;
-      }
+      if (!AppState.userId) return;
 
       const serverEmails = await this.getPendingEmails();
 
@@ -847,8 +777,6 @@ const AzureVMAPI = {
         console.warn('Server returned non-array for pending emails:', serverEmails);
         return;
       }
-
-      console.log(`Fetched ${serverEmails.length} email(s) from server for user ${AppState.userId}`);
 
       AppState.scheduledEmails = AppState.scheduledEmails || [];
 
@@ -936,7 +864,6 @@ const AzureVMAPI = {
       AppState.scheduledEmails = Array.from(byId.values());
 
       if (addedCount > 0 || emailsToRemove.length > 0) {
-        console.log(`Email sync: ${emailsToRemove.length} removed, ${addedCount} added`);
         if (AppState.currentView === 'scheduling' && typeof renderScheduling === 'function') {
           renderScheduling();
         }
@@ -961,12 +888,7 @@ const AzureVMAPI = {
         !existingEmails.includes(m.email.toLowerCase())
       );
 
-      if (toSubscribe.length === 0) {
-        console.log('No new team member emails to subscribe');
-        return;
-      }
-
-      console.log(`Subscribing ${toSubscribe.length} team member(s) with emails...`);
+      if (toSubscribe.length === 0) return;
 
       let added = 0;
       for (const member of toSubscribe) {
@@ -975,17 +897,13 @@ const AzureVMAPI = {
           added++;
         } catch (err) {
           // 400 = already exists, which is fine
-          if (err?.message && err.message.includes('already exists')) {
-            console.log(`Email ${member.email} already subscribed, skipping`);
-          } else {
+          if (!err?.message?.includes('already exists')) {
             console.warn(`Failed to subscribe ${member.name} (${member.email}):`, err?.message || err);
           }
         }
       }
 
       if (added > 0) {
-        console.log(`Subscribed ${added} team member(s) as email recipients`);
-        // Refresh the list so newly added users show up
         await this.fetchSubscribedEmailUsers();
       }
     } catch (error) {

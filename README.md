@@ -430,15 +430,6 @@ The code also allows overriding the database URL for other SQLAlchemy-supported 
 
 ## Development Notes
 
-### URL Configuration
-
-One of the most important implementation details in this repo is that the frontend currently contains hardcoded service URLs:
-
-- `AppState.azureVmUrl = 'http://20.153.191.11:8000'`
-- `AppState.authenticationUrl = 'http://20.153.191.11:8080'`
-
-If you run locally, update these values in `src/renderer/appState.js` or the desktop app will continue calling the remote server.
-
 ### Background Scheduling
 
 The messaging engine checks for due deliveries every 5 seconds and marks them as sent after processing.
@@ -452,16 +443,6 @@ Attachments can come from:
 - Google Drive downloads
 
 Uploaded files are stored in the messaging engine `uploads/` directory and then served under `/files`.
-
-## Known Limitations And Risks
-
-- Authentication is lightweight and does not currently enforce token-based authorization.
-- The root `.env.example` does not document all variables needed by the Python services.
-- Frontend service URLs are hardcoded instead of being fully environment-driven.
-- The Electron app, app backend, and messaging engine are started separately.
-- Some project naming in code is legacy or inconsistent, for example older "Scheduled Message API" labels inside the app backend.
-- WhatsApp is presented in the UI but is not implemented yet.
-- There is no unified test suite or orchestration script in the root project.
 
 ## Suggested First Improvements
 
@@ -489,7 +470,3 @@ python main.py
 cd Telegram-Engine
 python main.py
 ```
-
-## License
-
-The root `package.json` declares the project as `MIT`, but you should confirm whether that is intended for the full multi-service repository before distributing it.
