@@ -12,6 +12,7 @@ import os
 from dotenv import load_dotenv
 import shutil
 from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
 
 from database import get_db, init_db
 from models import ScheduledMessage, SubscribedUser, EmailSubscribedUser, ScheduledEmail
@@ -34,6 +35,15 @@ app = FastAPI(
     title="Scheduled Message API",
     description="API for scheduling messages with file attachments via Telegram and Email",
     version="2.0.0"
+)
+
+# CORS middleware — allow_origins=["*"] is required for Electron's file:// origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Create uploads directory if it doesn't exist

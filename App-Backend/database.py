@@ -38,21 +38,16 @@ def _migrate_db():
             if "phone" not in cols:
                 conn.execute(text("ALTER TABLE team_members ADD COLUMN phone TEXT DEFAULT ''"))
 
+    # Add indexes for frequently-filtered columns
+    with engine.begin() as conn:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tasks_project ON timeline_tasks(project_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON timeline_tasks(assignee_id)"))
+
 def init_db():
     """Initialize database tables and run migrations"""
     Base.metadata.create_all(bind=engine)
-    _migrate_db()
-
-def get_db():
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-def get_user_by_username(db: Session, username: str):
-    return db.query(User).filter(User.username == username).first()
     _migrate_db()
 
 def get_db():

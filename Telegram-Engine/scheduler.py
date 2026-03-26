@@ -4,7 +4,7 @@ Supports both Telegram and Email delivery.
 """
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import ScheduledMessage, ScheduledEmail
@@ -123,6 +123,38 @@ async def check_and_send_due_emails():
         await asyncio.sleep(5)
 
 
+async def cleanup_old_sent_messages():
+    """Delete sent messages older than 90 days (GDPR Article 5 - storage limitation)."""
+    while True:
+        try:
+            db: Session = SessionLocal()
+            cutoff = datetime.utcnow() - timedelta(days=90)
+
+            deleted_msgs = db.query(ScheduledMessage).filter(
+                ScheduledMessage.is_sent == True,
+                ScheduledMessage.scheduled_timestamp < cutoff
+            ).delete()
+
+            deleted_emails = db.query(ScheduledEmail).filter(
+                ScheduledEmail.is_sent == True,
+                ScheduledEmail.scheduled_timestamp < cutoff
+            ).delete()
+
+            if deleted_msgs or deleted_emails:
+                db.commit()
+                logger.info(
+                    f"Retention cleanup: removed {deleted_msgs} Telegram message(s) "
+                    f"and {deleted_emails} email(s) older than 90 days"
+                )
+
+            db.close()
+        except Exception as e:
+            logger.error(f"Error in retention cleanup: {str(e)}")
+
+        # Run once per day
+        await asyncio.sleep(86400)
+
+
 def start_message_scheduler(app):
     """Start the background message schedulers for both Telegram and Email"""
     @app.on_event("startup")
@@ -130,6 +162,8 @@ def start_message_scheduler(app):
         # Start both schedulers concurrently
         asyncio.create_task(check_and_send_due_messages())
         asyncio.create_task(check_and_send_due_emails())
+        asyncio.create_task(cleanup_old_sent_messages())
         logger.info("Message schedulers started!")
         logger.info("  - Telegram scheduler: Checking every 5 seconds...")
         logger.info("  - Email scheduler: Checking every 5 seconds...")
+        logger.info("  - Retention cleanup: Runs daily, removes sent messages older than 90 days")

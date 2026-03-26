@@ -24,5 +24,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   googleLogout: () => ipcRenderer.invoke('google-logout'),
 
   onGoogleAuthSuccess: (callback) => ipcRenderer.on('google-auth-success', (event, data) => callback(data)),
-  onGoogleAuthError: (callback) => ipcRenderer.on('google-auth-error', (event, error) => callback(error))
+  onGoogleAuthError: (callback) => ipcRenderer.on('google-auth-error', (event, error) => callback(error)),
+
+  // =========================
+  // Backend URLs (from .env)
+  // =========================
+  getBackendUrls: () => ipcRenderer.invoke('get-backend-urls'),
 });

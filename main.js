@@ -1312,6 +1312,14 @@ ipcMain.handle('download-google-drive-file', async (event, { fileId, fileName, m
 
 
 // Logout from Google
+ipcMain.handle('get-backend-urls', () => {
+  const isReal = (url) => url && url.startsWith('http') && !url.includes('your-vm-ip') && !url.includes('your-');
+  return {
+    azureVmUrl: isReal(process.env.AZURE_VM_URL) ? process.env.AZURE_VM_URL : 'http://20.153.191.11:8000',
+    authenticationUrl: isReal(process.env.AUTH_URL) ? process.env.AUTH_URL : 'http://20.153.191.11:8080',
+  };
+});
+
 ipcMain.handle('google-logout', async () => {
   console.log('\n🚪 [Google Auth] Logging out...');
 

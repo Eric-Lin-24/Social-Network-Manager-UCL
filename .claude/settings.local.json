@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs cat:*)",
+      "Bash(grep -r \"try\\\\|catch\\\\|except\\\\|throw\\\\|Error\" /c/Users/Yusuf/Documents/GitHub/project/actualZaploopa/Social-Network-Manager-UCL/App-Backend/*.py)"
+    ]
+  }
+}
