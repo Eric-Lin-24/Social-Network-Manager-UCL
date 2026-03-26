@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:www.electronjs.org)",
-      "Bash(grep -E \"function \\(startOfDay|endOfDay|localDateKey\\)\" /c/Users/Yusuf/Documents/GitHub/project/actualZaploopa/Social-Network-Manager-UCL/src/renderer/*.js)",
-      "Bash(grep -v \"node_modules\\\\|\\\\.env\\\\|example\\\\|placeholder\\\\|process\\\\.env\\\\|getAccessToken\\\\|access_token\\\\|oauth.*token\\\\|token.*oauth\\\\|refresh_token\\\\|id_token\\\\|auth.*token\\\\|token.*auth\\\\|your_\\\\|_here\\\\|AppState\\\\|electronAPI\\\\|ipcRenderer\\\\|comment\\\\|//\")"
-    ]
-  }
-}
