@@ -32,23 +32,11 @@ let googleTokens = null;
 let mainWindow = null;
 let appTray = null;
 
-const trayIconPath = path.join(__dirname, 'assets', 'Adobe Express - file.png');
-
 function createTrayIcon() {
   if (appTray) return appTray;
 
-  let trayImage = nativeImage.createFromPath(trayIconPath);
-  // Crop out the white padding — the logo occupies roughly the centre 65% of the image
-  if (!trayImage.isEmpty()) {
-    const size = trayImage.getSize();
-    const pad = Math.round(size.width * 0.16);
-    trayImage = trayImage.crop({
-      x: pad, y: pad,
-      width: size.width - pad * 2,
-      height: size.height - pad * 2
-    });
-  }
-
+  const iconPath = path.join(__dirname, 'assets', 'icon_64x64_transparent.png');
+  const trayImage = nativeImage.createFromPath(iconPath).resize({ width: 32, height: 32 });
   appTray = new Tray(trayImage);
   appTray.setToolTip('Community Curator');
   appTray.setContextMenu(Menu.buildFromTemplate([
@@ -864,12 +852,7 @@ function createGoogleAuthServer() {
 }
 
 function createWindow() {
-  let windowIcon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Adobe Express - file.png'));
-  if (!windowIcon.isEmpty()) {
-    const size = windowIcon.getSize();
-    const pad = Math.round(size.width * 0.16);
-    windowIcon = windowIcon.crop({ x: pad, y: pad, width: size.width - pad * 2, height: size.height - pad * 2 });
-  }
+  const windowIcon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon_64x64_transparent.png'));
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,

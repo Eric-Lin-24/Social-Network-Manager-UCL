@@ -345,37 +345,6 @@ async function refreshCloudFilesForPicker() {
   showNotification('Cloud files refreshed', 'success');
 }
 
-/**
- * Download file from OneDrive
- * @param {string} fileId - OneDrive file ID
- * @param {string} fileName - File name
- * @returns {Promise<File>} - Downloaded file as File object
- */
-async function downloadFileFromOneDrive(fileId, fileName) {
-  if (!AppState.isAuthenticated) {
-    throw new Error('Not authenticated with Microsoft. Please sign in.');
-  }
-
-  const token = await window.electronAPI.getAccessToken();
-  if (!token) {
-    throw new Error('No Microsoft access token available. Please reconnect Microsoft.');
-  }
-
-  const url = `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`;
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream' }
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Failed to download file: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`);
-  }
-
-  const blob = await res.blob();
-  return new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
-}
-
 
 /**
  * Download file from Google Drive
